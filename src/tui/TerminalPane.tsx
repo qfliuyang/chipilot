@@ -15,7 +15,7 @@ interface Props {
  */
 export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines = 20 }) => {
   const bufferRef = useRef<string>("");
-  const [, forceRender] = React.useReducer(0);
+  const [, forceRender] = React.useReducer((n: number) => n + 1, 0);
 
   useEffect(() => {
     const handleOutput = (data: string) => {
