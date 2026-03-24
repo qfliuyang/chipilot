@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useRef, useState } from "react";
+import React, { memo, useEffect, useRef } from "react";
 import { Box, Text, useInput } from "ink";
 import type { TerminalSession } from "../terminal/session.js";
 
@@ -9,56 +9,48 @@ interface Props {
 }
 
 /**
- * TerminalPane is self-contained - it manages its own output buffer
- * to prevent parent re-renders from causing flickering.
+ * TerminalPane - Real terminal feel
+ *
+ * Key: Keep ALL PTY output raw, only strip truly problematic sequences.
  */
-export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines = 15 }) => {
-  // Local state only for this component
-  const [lines, setLines] = useState<string[]>([]);
+export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines = 20 }) => {
   const bufferRef = useRef<string>("");
-  const rafRef = useRef<number>(0);
+  const [, forceRender] = React.useReducer(0);
 
   useEffect(() => {
     const handleOutput = (data: string) => {
-      // Accumulate in buffer
-      bufferRef.current = (bufferRef.current + data).slice(-10000);
+      // Accumulate raw output - keep everything
+      bufferRef.current = (bufferRef.current + data).slice(-50000);
 
-      // Use requestAnimationFrame for smooth updates without excessive re-renders
-      if (rafRef.current) return;
-
-      rafRef.current = setTimeout(() => {
-        rafRef.current = 0;
-
-        // Clean ANSI codes and split into lines
-        const cleaned = bufferRef.current
-          .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
-          .replace(/\x1b\][^\x07]*\x07/g, "")
-          .replace(/\x1b[()][AB012]/g, "")
-          .replace(/\r\n/g, "\n")
-          .replace(/\r/g, "");
-
-        const allLines = cleaned.split("\n");
-        setLines(allLines.slice(-maxLines));
-      }, 16); // ~60fps
+      // Force re-render
+      forceRender((n) => n + 1);
     };
 
     session.on("output", handleOutput);
+
+    // Start the session if not already started
+    if (!session.isRunning()) {
+      session.start();
+    }
+
     return () => {
       session.off("output", handleOutput);
-      if (rafRef.current) clearTimeout(rafRef.current);
     };
-  }, [session, maxLines]);
+  }, [session]);
 
-  // Input handling - Tab is passed through to parent
+  // Input handling - pass through to PTY immediately
   useInput(
     (input, key) => {
       if (!focused) return;
-      if (key.tab) return; // Let parent handle tab
 
+      // Tab switches panes (handled by parent), don't consume it
+      if (key.tab) return;
+
+      // Pass everything else directly to PTY - let PTY handle echo
       if (key.return) {
         session.write("\r");
       } else if (key.backspace || key.delete) {
-        session.write("\x7f");
+        session.write("\x7f"); // DEL character for backspace
       } else if (key.upArrow) {
         session.write("\x1b[A");
       } else if (key.downArrow) {
@@ -68,26 +60,45 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines 
       } else if (key.rightArrow) {
         session.write("\x1b[C");
       } else if (key.ctrl && input.length === 1) {
-        session.write(String.fromCharCode(input.charCodeAt(0) - 96));
+        // Ctrl+C is handled by parent, other Ctrl keys pass through
+        if (input !== "c") {
+          session.write(String.fromCharCode(input.charCodeAt(0) - 96));
+        }
       } else if (input.length === 1 && !key.meta) {
+        // Regular character - pass to PTY, let it echo back
         session.write(input);
       }
     },
     { isActive: focused }
   );
 
-  // Show last N lines
-  const visibleLines = lines.slice(-maxLines);
+  // Get display lines - process raw buffer
+  const raw = bufferRef.current;
+
+  // Only strip truly problematic sequences
+  // Keep cursor movement and color codes
+  let processed = raw;
+  // Clear screen
+  processed = processed.replace(/\x1b\[2J/g, "");
+  // Cursor home
+  processed = processed.replace(/\x1b\[H/g, "");
+  // Clear line
+  processed = processed.replace(/\x1b\[K/g, "");
+  // OSC sequences
+  processed = processed.replace(/\x1b\][^\x07]*\x07/g, "");
+
+  const lines = processed.split("\n");
+  const displayLines = lines.slice(-maxLines);
 
   return (
     <Box flexDirection="column" width="100%" height="100%">
       <Box paddingX={1} flexShrink={0}>
         <Text bold color="yellow">Terminal</Text>
-        {focused && <Text dimColor> (active)</Text>}
+        {focused && <Text dimColor> (active - type normally)</Text>}
       </Box>
 
       <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
-        {visibleLines.map((line, i) => (
+        {displayLines.map((line, i) => (
           <Text key={i}>{line || " "}</Text>
         ))}
         {focused && <Text color="green">▋</Text>}
