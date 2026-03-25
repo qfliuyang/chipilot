@@ -1,0 +1,279 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774369435669,
+  "projectRoot": "/Users/luzi/code/chipilot-cli/chipilot",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=20",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "18.3.1",
+        "category": "frontend"
+      },
+      {
+        "name": "vitest",
+        "version": "3.0.9",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 20"
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": "npm test",
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "build": "tsup",
+      "dev": "tsup --watch",
+      "start": "node dist/cli.js",
+      "typecheck": "tsc --noEmit",
+      "test": "vitest",
+      "lint": "eslint src"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": "*.test.ts",
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "src",
+      "tests"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 2,
+      "lastAccessed": 1774369435611,
+      "keyFiles": [
+        "cli.ts",
+        "index.ts"
+      ]
+    },
+    "tests": {
+      "path": "tests",
+      "purpose": "Test files",
+      "fileCount": 4,
+      "lastAccessed": 1774369435625,
+      "keyFiles": [
+        "agent.test.ts",
+        "demo.test.ts",
+        "terminal.test.ts",
+        "tui.test.tsx"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src/tui/App.tsx",
+      "accessCount": 48,
+      "lastAccessed": 1774401264689,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier3-integration/pty-integration.test.ts",
+      "accessCount": 13,
+      "lastAccessed": 1774401377087,
+      "type": "file"
+    },
+    {
+      "path": "src/tui/TerminalPane.tsx",
+      "accessCount": 10,
+      "lastAccessed": 1774400489116,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 8,
+      "lastAccessed": 1774398949590,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 5,
+      "lastAccessed": 1774370241290,
+      "type": "directory"
+    },
+    {
+      "path": "tests/README.md",
+      "accessCount": 5,
+      "lastAccessed": 1774398925622,
+      "type": "file"
+    },
+    {
+      "path": "src/tui/ApprovalModal.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1774370407005,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier3-integration/pty-runner.ts",
+      "accessCount": 4,
+      "lastAccessed": 1774401438970,
+      "type": "file"
+    },
+    {
+      "path": "src/tui/ChatPane.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1774369983885,
+      "type": "file"
+    },
+    {
+      "path": "test-ux-improvements.mjs",
+      "accessCount": 3,
+      "lastAccessed": 1774394738143,
+      "type": "file"
+    },
+    {
+      "path": "vitest.config.ts",
+      "accessCount": 3,
+      "lastAccessed": 1774398357424,
+      "type": "file"
+    },
+    {
+      "path": "tests/TEST_RESULTS.md",
+      "accessCount": 3,
+      "lastAccessed": 1774399651422,
+      "type": "file"
+    },
+    {
+      "path": "src/agent/index.ts",
+      "accessCount": 2,
+      "lastAccessed": 1774369595883,
+      "type": "file"
+    },
+    {
+      "path": "tests/tiered-test-runner.ts",
+      "accessCount": 2,
+      "lastAccessed": 1774397757559,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier2-component/component.test.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1774398060945,
+      "type": "file"
+    },
+    {
+      "path": "vitest.tiered.config.ts",
+      "accessCount": 2,
+      "lastAccessed": 1774398612184,
+      "type": "file"
+    },
+    {
+      "path": "src/cli.ts",
+      "accessCount": 2,
+      "lastAccessed": 1774398986663,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 1,
+      "lastAccessed": 1774369486504,
+      "type": "file"
+    },
+    {
+      "path": "src/index.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774369524981,
+      "type": "file"
+    },
+    {
+      "path": "src/terminal/session.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774370404122,
+      "type": "file"
+    },
+    {
+      "path": "tests/validators/MockDetector.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774397124013,
+      "type": "file"
+    },
+    {
+      "path": "tests/validators/CrossValidator.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774397188270,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier4-e2e/e2e.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774397513135,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier1-unit/unit.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774397594453,
+      "type": "file"
+    },
+    {
+      "path": "tests/tui.test.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1774397897309,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier2.5-tui-test/tui-integration.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774398188049,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier2.5-tui-test/runner.mjs",
+      "accessCount": 1,
+      "lastAccessed": 1774398659164,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier2.5-tui-test/tui.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774398765568,
+      "type": "file"
+    },
+    {
+      "path": "test-tui.sh",
+      "accessCount": 1,
+      "lastAccessed": 1774400209162,
+      "type": "file"
+    },
+    {
+      "path": "tests/tier3-integration/human-simulation.test.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774400299864,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

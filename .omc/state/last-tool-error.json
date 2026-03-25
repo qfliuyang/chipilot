@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"npm run test:tier3 2>&1\",\"timeout\":120000,\"description\":\"Run all Tier 3 tests\"}",
+  "error": "Exit code 1\n\n> chipilot-cli@0.1.0 test:tier3\n> vitest run tests/tier3-integration --config vitest.tiered.config.ts\n\n\n RUN  v3.2.4 /Users/luzi/code/chipilot-cli/chipilot\n\n ❯ tests/tier3-integration/human-simulation.test.ts (14 tests | 6 failed) 2914ms\n   ✓ Human Simulation Tests > Realistic User Workflows > should handle typing then immediately switching panes 256ms\n   × Human Simulation Tests > Realistic User Workflows > should handle rapid tab switching 156ms\n     → expected false to be true //...",
+  "timestamp": "2026-03-25T01:17:00.822Z",
+  "retry_count": 1
+}

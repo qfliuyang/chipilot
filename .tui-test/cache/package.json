@@ -17,6 +17,7 @@
     "test:tiered": "node tests/tiered-test-runner.ts",
     "test:tier1": "vitest run tests/tier1-unit",
     "test:tier2": "vitest run tests/tier2-component",
+    "test:tier2.5": "npx tui-test tests/tier2.5-tui-test/tui.test.ts",
     "test:tier3": "vitest run tests/tier3-integration --config vitest.tiered.config.ts",
     "test:tier4": "vitest run tests/tier4-e2e --config vitest.tiered.config.ts",
     "lint": "eslint src"

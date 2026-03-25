@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from "react";
+import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
 import { Box, Text, useApp, useInput, useStdout, render } from "ink";
 import TextInput from "ink-text-input";
 import Spinner from "ink-spinner";
@@ -29,6 +29,69 @@ export async function runChipilot(options: ChipilotOptions): Promise<void> {
   render(<App options={options} />);
 }
 
+// Help overlay component
+const HelpOverlay: React.FC<{ onClose: () => void }> = ({ onClose }) => {
+  useInput(() => {
+    onClose();
+  });
+
+  return (
+    <Box
+      flexDirection="column"
+      borderStyle="double"
+      borderColor="cyan"
+      padding={1}
+      position="absolute"
+      width={60}
+    >
+      <Box marginBottom={1}>
+        <Text bold color="cyan">
+          Keyboard Shortcuts
+        </Text>
+      </Box>
+
+      <Box flexDirection="column" marginBottom={1}>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">Tab</Text>
+          <Text> - Switch between chat and terminal panes</Text>
+        </Box>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">Ctrl+C</Text>
+          <Text> - Exit application</Text>
+        </Box>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">Up/Down</Text>
+          <Text> - Scroll through messages (chat pane)</Text>
+        </Box>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">PageUp/PageDown</Text>
+          <Text> - Scroll by page (chat pane)</Text>
+        </Box>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">Y</Text>
+          <Text> - Approve command (when approval shown)</Text>
+        </Box>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">N</Text>
+          <Text> - Reject command (when approval shown)</Text>
+        </Box>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">E</Text>
+          <Text> - Edit command (when approval shown)</Text>
+        </Box>
+        <Box marginBottom={0}>
+          <Text bold color="yellow">?</Text>
+          <Text> - Show/hide this help</Text>
+        </Box>
+      </Box>
+
+      <Box justifyContent="center">
+        <Text dimColor>Press any key to close</Text>
+      </Box>
+    </Box>
+  );
+};
+
 export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   const { exit } = useApp();
   const { stdout } = useStdout();
@@ -48,9 +111,11 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [command, setCommand] = useState<ProposedCommand | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     { role: "assistant", content: "Welcome to chipilot! Ask me about EDA tools." },
   ]);
+  const [scrollOffset, setScrollOffset] = useState(0);
 
   // Refs for stable instances (created once)
   const sessionRef = useRef<TerminalSession | null>(null);
@@ -74,17 +139,65 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     });
   }
 
-  // Global input handler - Tab always switches panes
-  useInput((input, key) => {
-    if (key.tab) {
-      setPane((p) => (p === "chat" ? "term" : "chat"));
-      return;
+  // Resize terminal session when dimensions change
+  useEffect(() => {
+    if (sessionRef.current) {
+      const cols = Math.max(20, half - 4);
+      const rows = Math.max(10, mainHeight - 4);
+      sessionRef.current.resize(cols, rows);
     }
+  }, [half, mainHeight]);
 
-    if (key.ctrl && input === "c") {
-      exit();
+  // Global input handler - active everywhere, but ignores keys that TextInput needs
+  useInput(
+    (input, key) => {
+      // Allow backspace/delete to pass through to TextInput when in chat pane
+      if (pane === "chat" && (key.backspace || key.delete)) {
+        return;
+      }
+
+      // Help toggle with ? key (only when not showing approval modal)
+      if (!command && input === "?") {
+        setShowHelp((prev) => !prev);
+        return;
+      }
+
+      // When help is shown, any key closes it (handled by HelpOverlay)
+      if (showHelp) {
+        return;
+      }
+
+      if (key.tab) {
+        setPane((p) => (p === "chat" ? "term" : "chat"));
+        return;
+      }
+
+      if (key.ctrl && input === "c") {
+        exit();
+      }
+
+      // Scroll handlers (only when chat pane is focused)
+      if (pane === "chat") {
+        const totalMessages = messages.length;
+        const maxScroll = Math.max(0, totalMessages - maxVisibleMessages);
+
+        if (key.upArrow) {
+          // Scroll up (show older messages)
+          setScrollOffset((offset) => Math.min(maxScroll, offset + 1));
+        } else if (key.downArrow) {
+          // Scroll down (show newer messages)
+          setScrollOffset((offset) => Math.max(0, offset - 1));
+        } else if (key.pageUp) {
+          // Page up - scroll multiple messages
+          setScrollOffset((offset) => Math.min(maxScroll, offset + maxVisibleMessages));
+        } else if (key.pageDown) {
+          // Page down - scroll multiple messages
+          setScrollOffset((offset) => Math.max(0, offset - maxVisibleMessages));
+        }
+      }
     }
-  });
+    // No isActive - handler runs everywhere but selectively ignores keys
+  );
 
   // Submit chat message
   const submit = useCallback(async (msg: string) => {
@@ -103,12 +216,22 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     setLoading(false);
   }, [loading]);
 
-  // Calculate visible messages (scroll to show recent)
+  // Calculate visible messages with scroll support
   const maxVisibleMessages = Math.max(3, Math.floor((mainHeight - 4) / 3));
-  const visibleMessages = useMemo(
-    () => messages.slice(-maxVisibleMessages),
-    [messages, maxVisibleMessages]
-  );
+  const totalMessages = messages.length;
+  const maxScroll = Math.max(0, totalMessages - maxVisibleMessages);
+
+  // Auto-reset scroll when at bottom and new messages arrive
+  const visibleMessages = useMemo(() => {
+    const startIndex = Math.max(0, totalMessages - maxVisibleMessages - scrollOffset);
+    const endIndex = Math.min(totalMessages, startIndex + maxVisibleMessages);
+    return messages.slice(startIndex, endIndex);
+  }, [messages, maxVisibleMessages, scrollOffset, totalMessages]);
+
+  // Calculate display range for scroll indicator
+  const displayStart = totalMessages > 0 ? Math.max(1, totalMessages - maxVisibleMessages - scrollOffset + 1) : 0;
+  const displayEnd = Math.min(totalMessages, displayStart + maxVisibleMessages - 1);
+  const isScrolled = scrollOffset > 0;
 
   return (
     <Box flexDirection="column" width={width} height={height} flexShrink={0}>
@@ -117,7 +240,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
         <Text bold color="cyan">chipilot</Text>
         <Text dimColor> - Agentic EDA</Text>
         <Box flexGrow={1} />
-        <Text dimColor>Tab: switch | Ctrl+C: exit</Text>
+        <Text dimColor>Tab: switch | Ctrl+C: exit | ?: help</Text>
       </Box>
 
       {/* Main content - fixed height */}
@@ -137,7 +260,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
                 <Text bold color={m.role === "user" ? "green" : "cyan"}>
                   {m.role === "user" ? "You:" : "AI:"}
                 </Text>
-                <Text wrap="truncate">{m.content}</Text>
+                <Text wrap="wrap">{m.content}</Text>
               </Box>
             ))}
             {loading && (
@@ -146,6 +269,16 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
               </Text>
             )}
           </Box>
+          {/* Scroll indicator */}
+          {totalMessages > maxVisibleMessages && (
+            <Box paddingX={1} height={1}>
+              <Text dimColor>
+                {isScrolled ? "↑ " : "  "}
+                {displayStart}-{displayEnd} of {totalMessages}
+                {scrollOffset > 0 && " ↓"}
+              </Text>
+            </Box>
+          )}
         </Box>
 
         {/* Terminal pane - self-contained, no parent state updates */}
@@ -165,7 +298,14 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
       </Box>
 
       {/* Input area - fixed */}
-      <Box width={width} height={inputHeight} borderStyle="single" borderColor="gray" flexShrink={0}>
+      <Box
+        key={`input-${pane}`}  // Force remount when pane changes
+        width={width}
+        height={inputHeight}
+        borderStyle="single"
+        borderColor="gray"
+        flexShrink={0}
+      >
         {pane === "chat" ? (
           loading ? (
             <Text dimColor>Waiting for AI...</Text>
@@ -181,7 +321,12 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
             </>
           )
         ) : (
-          <Text dimColor>[Tab to focus terminal]</Text>
+          <Box flexDirection="row">
+            <Text color="gray" bold>&gt; </Text>
+            <Text color="gray" dimColor>
+              [Tab to return to chat]
+            </Text>
+          </Box>
         )}
       </Box>
 
@@ -197,6 +342,11 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
           }}
           onReject={() => setCommand(null)}
         />
+      )}
+
+      {/* Help overlay */}
+      {showHelp && (
+        <HelpOverlay onClose={() => setShowHelp(false)} />
       )}
     </Box>
   );

@@ -23,7 +23,7 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines 
       bufferRef.current = (bufferRef.current + data).slice(-50000);
 
       // Force re-render
-      forceRender((n) => n + 1);
+      forceRender();
     };
 
     session.on("output", handleOutput);
@@ -75,19 +75,9 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines 
   // Get display lines - process raw buffer
   const raw = bufferRef.current;
 
-  // Only strip truly problematic sequences
-  // Keep cursor movement and color codes
-  let processed = raw;
-  // Clear screen
-  processed = processed.replace(/\x1b\[2J/g, "");
-  // Cursor home
-  processed = processed.replace(/\x1b\[H/g, "");
-  // Clear line
-  processed = processed.replace(/\x1b\[K/g, "");
-  // OSC sequences
-  processed = processed.replace(/\x1b\][^\x07]*\x07/g, "");
-
-  const lines = processed.split("\n");
+  // Pass through raw PTY output - Ink handles ANSI sequences
+  // Stripping sequences breaks interactive programs (vim, less, htop)
+  const lines = raw.split("\n");
   const displayLines = lines.slice(-maxLines);
 
   return (
