@@ -299,7 +299,6 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
 
       {/* Input area - fixed */}
       <Box
-        key={`input-${pane}`}  // Force remount when pane changes
         width={width}
         height={inputHeight}
         borderStyle="single"

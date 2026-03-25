@@ -5,7 +5,7 @@
  * They validate Tier 2 by ensuring real terminal behavior matches expectations.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnCLI, PTYSession, validateANSISequences } from './pty-runner';
 import { mockDetector } from '../validators/MockDetector';
 
@@ -13,7 +13,7 @@ describe('Tier 3: PTY Integration Tests', () => {
   let session: PTYSession;
 
   // Anti-cheat: Verify we're using real PTY, not mocks
-  beforeAll(async () => {
+  beforeEach(async () => {
     const startTime = Date.now();
     session = await spawnCLI({ cols: 80, rows: 24 });
     const elapsed = Date.now() - startTime;
@@ -26,7 +26,7 @@ describe('Tier 3: PTY Integration Tests', () => {
     expect(ansi.hasColor).toBe(true);
   });
 
-  afterAll(() => {
+  afterEach(() => {
     session?.kill('SIGTERM');
   });
 
@@ -53,7 +53,7 @@ describe('Tier 3: PTY Integration Tests', () => {
 
   describe('Input Handling', () => {
     it('should accept keyboard input', async () => {
-      await session.send('hello world', { waitMs: 100 });
+      await session.send('hello world', { waitFor: 'hello world', timeout: 2000 });
 
       // Input should appear in output
       expect(session.contains('hello world')).toBe(true);

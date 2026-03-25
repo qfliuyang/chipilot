@@ -191,7 +191,9 @@ export async function spawnCLI(
 
       return new Promise<void>((resolve, reject) => {
         const check = () => {
-          if (regex.test(output)) {
+          // Check both raw output and screen buffer
+          const screenContent = screenBuffer.join('\n');
+          if (regex.test(output) || regex.test(screenContent)) {
             resolve();
             return;
           }
@@ -220,7 +222,9 @@ export async function spawnCLI(
 
     contains(pattern: string | RegExp): boolean {
       const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
-      return regex.test(output);
+      // Check both raw output and current screen buffer
+      // Screen buffer captures current visible state (needed for ink-text-input)
+      return regex.test(output) || regex.test(screenBuffer.join('\n'));
     },
 
     kill(signal: string = 'SIGTERM') {
