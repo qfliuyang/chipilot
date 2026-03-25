@@ -91,6 +91,20 @@ export {
   type ExecutionOptions,
 } from "./ExecutionAgent";
 
+export {
+  RecoveryAgent,
+  type ErrorType,
+  type RecoveryStrategyType,
+  type ErrorDiagnosis,
+  type RecoveryCheckpoint,
+  type RecoveryAction as RecoveryAgentAction,
+  type RecoveryPlan,
+  type RecoveryResult,
+  type RecoveryPattern,
+  type RecoveryAgentOptions,
+  type RecoveryStats,
+} from "./RecoveryAgent";
+
 // ============================================================================
 // Manager Agents
 // ============================================================================
