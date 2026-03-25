@@ -19,6 +19,8 @@
     "test:tier2": "vitest run tests/tier2-component",
     "test:tier3": "vitest run tests/tier3-integration --config vitest.tiered.config.ts",
     "test:tier4": "vitest run tests/tier4-e2e --config vitest.tiered.config.ts",
+    "test:visual": "node tests/visual/scripts/run-tests.cjs",
+    "test:visual:update": "node tests/visual/scripts/run-tests.cjs --update",
     "lint": "eslint src"
   },
   "keywords": [
@@ -53,6 +55,8 @@
     "@types/react": "^18.3.18",
     "eslint": "^9.22.0",
     "ink-testing-library": "^4.0.0",
+    "pixelmatch": "^5.3.0",
+    "pngjs": "^7.0.0",
     "tsup": "^8.4.0",
     "typescript": "^5.8.2",
     "typescript-eslint": "^8.26.1",

@@ -8,3 +8,7 @@ dist/
 coverage/
 .vscode/
 .idea/
+
+# Visual regression test output (not golden screenshots)
+tests/visual/output/
+!tests/visual/output/.gitkeep
