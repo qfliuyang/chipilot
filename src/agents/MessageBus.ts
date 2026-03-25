@@ -183,7 +183,7 @@ export class MessageBus extends EventEmitter {
     // Send to all registered agents except sender
     const deliveryPromises: Promise<void>[] = [];
 
-    for (const [agentId, agent] of this.agents) {
+    for (const [agentId, agent] of Array.from(this.agents.entries())) {
       if (agentId !== message.from) {
         deliveryPromises.push(
           this.deliverToAgent(agent, broadcastMessage).catch((error) => {
@@ -195,7 +195,7 @@ export class MessageBus extends EventEmitter {
     }
 
     // Also notify pattern subscribers
-    for (const [subscriptionId, subscription] of this.subscriptions) {
+    for (const [subscriptionId, subscription] of Array.from(this.subscriptions.entries())) {
       if (this.matchesPattern(broadcastMessage, subscription.pattern)) {
         deliveryPromises.push(
           Promise.resolve().then(async () => {
@@ -422,7 +422,7 @@ export class MessageBus extends EventEmitter {
 
     // Notify pattern subscribers
     const subscriberPromises: Promise<void>[] = [];
-    for (const [subscriptionId, subscription] of this.subscriptions) {
+    for (const [subscriptionId, subscription] of Array.from(this.subscriptions.entries())) {
       if (this.matchesPattern(message, subscription.pattern)) {
         subscriberPromises.push(
           Promise.resolve().then(async () => {
