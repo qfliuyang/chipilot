@@ -1,11 +1,14 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { Box, Text, useApp, useInput, useStdout, render } from "ink";
+import { Box, Text, useApp, useInput, useStdout, render, Spacer } from "ink";
 import TextInput from "ink-text-input";
-import Spinner from "ink-spinner";
 import { TerminalPane } from "./TerminalPane.js";
 import { ApprovalModal } from "./ApprovalModal.js";
 import { TerminalSession } from "../terminal/session.js";
 import { Agent } from "../agent/index.js";
+import { OrchestratorAgent, GoalResult } from "../agents/OrchestratorAgent.js";
+import { TerminalPerceptionAgent } from "../agents/TerminalPerceptionAgent.js";
+import { ExecutionAgent } from "../agents/ExecutionAgent.js";
+import { AgentState } from "../agents/BaseAgent.js";
 
 export interface ChipilotOptions {
   provider?: string;
@@ -60,6 +63,10 @@ const HelpOverlay: React.FC<{ onClose: () => void }> = ({ onClose }) => {
           <Text> - Exit application</Text>
         </Box>
         <Box marginBottom={0}>
+          <Text bold color="yellow">Ctrl+X</Text>
+          <Text> - Emergency stop all agents</Text>
+        </Box>
+        <Box marginBottom={0}>
           <Text bold color="yellow">Up/Down</Text>
           <Text> - Scroll through messages (chat pane)</Text>
         </Box>
@@ -92,6 +99,57 @@ const HelpOverlay: React.FC<{ onClose: () => void }> = ({ onClose }) => {
   );
 };
 
+// Agent status display component
+interface AgentStatus {
+  agentId: string;
+  state: AgentState;
+  lastActivity?: number;
+}
+
+const AgentPanel: React.FC<{
+  statuses: AgentStatus[];
+  isProcessing: boolean;
+  currentGoal?: string;
+}> = ({ statuses, isProcessing, currentGoal }) => {
+  const getStateColor = (state: AgentState): string => {
+    switch (state) {
+      case "running": return "green";
+      case "error": return "red";
+      case "paused": return "yellow";
+      case "idle": return "gray";
+      default: return "gray";
+    }
+  };
+
+  const activeAgents = statuses.filter(s => s.state === "running");
+
+  return (
+    <Box flexDirection="column" paddingX={1}>
+      <Box marginBottom={1}>
+        <Text bold color="cyan">Agent Status</Text>
+        {isProcessing && (
+          <Box marginLeft={2}>
+            <Text color="yellow">{currentGoal ? `Processing: ${currentGoal}` : "Processing..."}</Text>
+          </Box>
+        )}
+      </Box>
+      {activeAgents.length > 0 ? (
+        <Box flexDirection="column">
+          {activeAgents.map(agent => (
+            <Box key={agent.agentId}>
+              <Text color={getStateColor(agent.state)}>
+                {agent.agentId}: {agent.state}
+              </Text>
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Text dimColor>All agents idle</Text>
+      )}
+    </Box>
+  );
+};
+
 export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   const { exit } = useApp();
   const { stdout } = useStdout();
@@ -104,7 +162,8 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   // Fixed layout proportions
   const headerHeight = 1;
   const inputHeight = 3;
-  const mainHeight = Math.max(10, height - headerHeight - inputHeight);
+  const agentPanelHeight = 3;
+  const mainHeight = Math.max(10, height - headerHeight - inputHeight - agentPanelHeight);
 
   // State
   const [pane, setPane] = useState<"chat" | "term">("chat");
@@ -116,10 +175,16 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     { role: "assistant", content: "Welcome to chipilot! Ask me about EDA tools." },
   ]);
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>([]);
+  const [currentGoal, setCurrentGoal] = useState<string | undefined>();
+  const [goalResult, setGoalResult] = useState<GoalResult | null>(null);
 
   // Refs for stable instances (created once)
   const sessionRef = useRef<TerminalSession | null>(null);
   const agentRef = useRef<Agent | null>(null);
+  const orchestratorRef = useRef<OrchestratorAgent | null>(null);
+  const terminalPerceptionRef = useRef<TerminalPerceptionAgent | null>(null);
+  const executionAgentRef = useRef<ExecutionAgent | null>(null);
 
   // Initialize session once
   if (!sessionRef.current) {
@@ -127,6 +192,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
       cols: Math.max(20, half - 4),
       rows: Math.max(10, mainHeight - 4),
     });
+    sessionRef.current.start();
   }
 
   // Initialize agent once
@@ -139,6 +205,93 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     });
   }
 
+  // Initialize OrchestratorAgent and other agents
+  useEffect(() => {
+    if (!orchestratorRef.current) {
+      // Create agents
+      const orchestrator = new OrchestratorAgent({
+        id: "orchestrator",
+        name: "Orchestrator",
+        debug: options.debug,
+      });
+
+      const terminalPerception = new TerminalPerceptionAgent({
+        id: "terminal-perception",
+        name: "Terminal Perception",
+        debug: options.debug,
+      });
+
+      const executionAgent = new ExecutionAgent({
+        id: "execution",
+        name: "Execution",
+      });
+
+      // Store refs
+      orchestratorRef.current = orchestrator;
+      terminalPerceptionRef.current = terminalPerception;
+      executionAgentRef.current = executionAgent;
+
+      // Initialize and start agents
+      Promise.all([
+        orchestrator.initialize(),
+        terminalPerception.initialize(),
+        executionAgent.initialize(),
+      ]).then(() => {
+        return Promise.all([
+          orchestrator.start(),
+          terminalPerception.start(),
+          executionAgent.start(),
+        ]);
+      }).then(() => {
+        // Connect terminal to perception and execution agents
+        if (sessionRef.current) {
+          terminalPerception.attachToSession(sessionRef.current);
+          executionAgent.attachToSession(sessionRef.current);
+        }
+
+        // Subscribe to orchestrator state changes
+        orchestrator.on("stateChange", (event: { agentId: string; newState: AgentState }) => {
+          setAgentStatuses((prev) => {
+            const existing = prev.find((s) => s.agentId === event.agentId);
+            if (existing) {
+              return prev.map((s) =>
+                s.agentId === event.agentId
+                  ? { ...s, state: event.newState, lastActivity: Date.now() }
+                  : s
+              );
+            }
+            return [...prev, { agentId: event.agentId, state: event.newState, lastActivity: Date.now() }];
+          });
+        });
+
+        // Register initial agent statuses
+        setAgentStatuses([
+          { agentId: "orchestrator", state: "idle", lastActivity: Date.now() },
+          { agentId: "terminal-perception", state: "idle", lastActivity: Date.now() },
+          { agentId: "execution", state: "idle", lastActivity: Date.now() },
+        ]);
+      }).catch((err) => {
+        setMessages((m) => [...m, { role: "assistant", content: `Agent initialization error: ${err}` }]);
+      });
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (orchestratorRef.current) {
+        orchestratorRef.current.stop().catch(() => {});
+      }
+      if (terminalPerceptionRef.current) {
+        terminalPerceptionRef.current.stop().catch(() => {});
+      }
+      if (executionAgentRef.current) {
+        executionAgentRef.current.stop().catch(() => {});
+      }
+      if (sessionRef.current) {
+        sessionRef.current.destroy();
+      }
+    };
+  }, [options.debug]);
+
   // Resize terminal session when dimensions change
   useEffect(() => {
     if (sessionRef.current) {
@@ -148,72 +301,95 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     }
   }, [half, mainHeight]);
 
-  // Global input handler - active everywhere, but ignores keys that TextInput needs
+  // Global input handler - handles global shortcuts and pane switching
   useInput(
     (input, key) => {
-      // Allow backspace/delete to pass through to TextInput when in chat pane
-      if (pane === "chat" && (key.backspace || key.delete)) {
+      // Global shortcuts (available in all panes)
+      if (key.ctrl && input === "c") {
+        exit();
         return;
       }
-
-      // Help toggle with ? key (only when not showing approval modal)
-      if (!command && input === "?") {
-        setShowHelp((prev) => !prev);
+      if (key.ctrl && input === "x") {
+        // Emergency stop
+        if (orchestratorRef.current) {
+          orchestratorRef.current.emergencyStop().then(() => {
+            setMessages((m) => [...m, { role: "assistant", content: "Emergency stop executed. All operations halted." }]);
+            setLoading(false);
+            setCurrentGoal(undefined);
+          });
+        }
         return;
       }
-
-      // When help is shown, any key closes it (handled by HelpOverlay)
-      if (showHelp) {
-        return;
-      }
-
       if (key.tab) {
         setPane((p) => (p === "chat" ? "term" : "chat"));
         return;
       }
-
-      if (key.ctrl && input === "c") {
-        exit();
+      // Help toggle with ? key (available in all panes, when not showing approval modal)
+      if (!command && input === "?") {
+        setShowHelp((prev) => !prev);
+        return;
+      }
+      // When help is shown, let HelpOverlay handle all keys
+      if (showHelp) {
+        return;
       }
 
-      // Scroll handlers (only when chat pane is focused)
+      // Chat pane specific shortcuts
       if (pane === "chat") {
+        // Scroll handlers
         const totalMessages = messages.length;
         const maxScroll = Math.max(0, totalMessages - maxVisibleMessages);
-
         if (key.upArrow) {
-          // Scroll up (show older messages)
           setScrollOffset((offset) => Math.min(maxScroll, offset + 1));
         } else if (key.downArrow) {
-          // Scroll down (show newer messages)
           setScrollOffset((offset) => Math.max(0, offset - 1));
         } else if (key.pageUp) {
-          // Page up - scroll multiple messages
           setScrollOffset((offset) => Math.min(maxScroll, offset + maxVisibleMessages));
         } else if (key.pageDown) {
-          // Page down - scroll multiple messages
           setScrollOffset((offset) => Math.max(0, offset - maxVisibleMessages));
         }
+        // Don't intercept other keys (let TextInput handle them)
+        return;
+      }
+
+      // Terminal pane - don't intercept any keys (let TerminalPane handle them)
+      if (pane === "term") {
+        return;
       }
     }
-    // No isActive - handler runs everywhere but selectively ignores keys
   );
 
-  // Submit chat message
+  // Submit chat message - now uses OrchestratorAgent
   const submit = useCallback(async (msg: string) => {
     if (!msg.trim() || loading) return;
     setInput("");
     setLoading(true);
+    setGoalResult(null);
     setMessages((m) => [...m, { role: "user", content: msg }]);
+    setCurrentGoal(msg);
 
     try {
-      const res = await agentRef.current!.chat(msg, {});
-      setMessages((m) => [...m, { role: "assistant", content: res.message }]);
-      if (res.proposedCommand) setCommand(res.proposedCommand);
+      if (orchestratorRef.current) {
+        const result = await orchestratorRef.current.processGoal(msg, {
+          cwd: process.cwd(),
+          sessionId: "tui-session",
+        });
+        setGoalResult(result);
+        setMessages((m) => [...m, { role: "assistant", content: result.message }]);
+        if (result.error) {
+          setMessages((m) => [...m, { role: "assistant", content: `Error: ${result.error}` }]);
+        }
+      } else {
+        // Fallback to old agent if orchestrator not ready
+        const res = await agentRef.current!.chat(msg, {});
+        setMessages((m) => [...m, { role: "assistant", content: res.message }]);
+        if (res.proposedCommand) setCommand(res.proposedCommand);
+      }
     } catch (e) {
       setMessages((m) => [...m, { role: "assistant", content: `Error: ${e}` }]);
     }
     setLoading(false);
+    setCurrentGoal(undefined);
   }, [loading]);
 
   // Calculate visible messages with scroll support
@@ -240,7 +416,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
         <Text bold color="cyan">chipilot</Text>
         <Text dimColor> - Agentic EDA</Text>
         <Box flexGrow={1} />
-        <Text dimColor>Tab: switch | Ctrl+C: exit | ?: help</Text>
+        <Text dimColor>Tab: switch | Ctrl+C: exit | Ctrl+X: stop | ?: help</Text>
       </Box>
 
       {/* Main content - fixed height */}
@@ -264,9 +440,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
               </Box>
             ))}
             {loading && (
-              <Text dimColor>
-                <Spinner type="dots" /> Thinking...
-              </Text>
+              <Text dimColor>Thinking...</Text>
             )}
           </Box>
           {/* Scroll indicator */}
@@ -292,9 +466,25 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
           <TerminalPane
             focused={pane === "term"}
             session={sessionRef.current!}
-            maxLines={Math.max(5, mainHeight - 4)}
+            cols={Math.max(20, half - 4)}
+            rows={Math.max(10, mainHeight - 4)}
           />
         </Box>
+      </Box>
+
+      {/* Agent status panel */}
+      <Box
+        width={width}
+        height={agentPanelHeight}
+        borderStyle="single"
+        borderColor="gray"
+        flexShrink={0}
+      >
+        <AgentPanel
+          statuses={agentStatuses}
+          isProcessing={loading}
+          currentGoal={currentGoal}
+        />
       </Box>
 
       {/* Input area - fixed */}

@@ -1,34 +1,52 @@
-import React, { memo, useEffect, useRef } from "react";
+import React, { memo, useEffect, useRef, useCallback } from "react";
 import { Box, Text, useInput } from "ink";
 import type { TerminalSession } from "../terminal/session.js";
+import { VirtualTerminal } from "../terminal/virtual.js";
 
 interface Props {
   focused: boolean;
   session: TerminalSession;
-  maxLines?: number;
+  cols?: number;
+  rows?: number;
 }
 
 /**
- * TerminalPane - Real terminal feel
+ * TerminalPane - Real terminal emulation using xterm.js
  *
- * Key: Keep ALL PTY output raw, only strip truly problematic sequences.
+ * Renders terminal output with proper ANSI sequence handling,
+ * cursor positioning, colors, and scrolling.
  */
-export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines = 20 }) => {
-  const bufferRef = useRef<string>("");
+export const TerminalPane: React.FC<Props> = memo(({ focused, session, cols = 80, rows = 24 }) => {
+  const virtualTermRef = useRef<VirtualTerminal | null>(null);
   const [, forceRender] = React.useReducer((n: number) => n + 1, 0);
 
-  useEffect(() => {
-    const handleOutput = (data: string) => {
-      // Accumulate raw output - keep everything
-      bufferRef.current = (bufferRef.current + data).slice(-50000);
+  // Initialize or get VirtualTerminal instance
+  const getVirtualTerminal = useCallback(() => {
+    if (!virtualTermRef.current) {
+      virtualTermRef.current = new VirtualTerminal(cols, rows);
+    }
+    return virtualTermRef.current;
+  }, [cols, rows]);
 
-      // Force re-render
+  // Handle resize
+  useEffect(() => {
+    const vt = getVirtualTerminal();
+    vt.resize(cols, rows);
+    session.resize(cols, rows);
+    forceRender();
+  }, [cols, rows, session, getVirtualTerminal]);
+
+  // Handle terminal output
+  useEffect(() => {
+    const vt = getVirtualTerminal();
+
+    const handleOutput = (data: string) => {
+      vt.write(data);
       forceRender();
     };
 
     session.on("output", handleOutput);
 
-    // Start the session if not already started
     if (!session.isRunning()) {
       session.start();
     }
@@ -36,21 +54,28 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines 
     return () => {
       session.off("output", handleOutput);
     };
-  }, [session]);
+  }, [session, getVirtualTerminal]);
 
-  // Input handling - pass through to PTY immediately
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (virtualTermRef.current) {
+        virtualTermRef.current.destroy();
+        virtualTermRef.current = null;
+      }
+    };
+  }, []);
+
+  // Input handling - pass through to PTY
   useInput(
     (input, key) => {
       if (!focused) return;
-
-      // Tab switches panes (handled by parent), don't consume it
       if (key.tab) return;
 
-      // Pass everything else directly to PTY - let PTY handle echo
       if (key.return) {
         session.write("\r");
       } else if (key.backspace || key.delete) {
-        session.write("\x7f"); // DEL character for backspace
+        session.write("\x7f");
       } else if (key.upArrow) {
         session.write("\x1b[A");
       } else if (key.downArrow) {
@@ -60,42 +85,42 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, maxLines 
       } else if (key.rightArrow) {
         session.write("\x1b[C");
       } else if (key.ctrl && input.length === 1) {
-        // Ctrl+C is handled by parent, other Ctrl keys pass through
         if (input !== "c") {
           session.write(String.fromCharCode(input.charCodeAt(0) - 96));
         }
       } else if (input.length === 1 && !key.meta) {
-        // Regular character - pass to PTY, let it echo back
         session.write(input);
       }
     },
     { isActive: focused }
   );
 
-  // Get display lines - process raw buffer
-  const raw = bufferRef.current;
+  // Get rendered screen from VirtualTerminal
+  const vt = getVirtualTerminal();
+  const screen = vt.getScreen();
+  const lines = screen.split("\n").slice(0, rows);
 
-  // Pass through raw PTY output - Ink handles ANSI sequences
-  // Stripping sequences breaks interactive programs (vim, less, htop)
-  const lines = raw.split("\n");
-  const displayLines = lines.slice(-maxLines);
+  // Pad with empty lines if needed
+  const paddedLines = [
+    ...Array(Math.max(0, rows - lines.length)).fill(""),
+    ...lines
+  ];
 
   return (
     <Box flexDirection="column" width="100%" height="100%">
       <Box paddingX={1} flexShrink={0}>
         <Text bold color="yellow">Terminal</Text>
-        {focused && <Text dimColor> (active - type normally)</Text>}
+        {focused && <Text dimColor> (active)</Text>}
       </Box>
 
       <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
-        {displayLines.map((line, i) => (
+        {paddedLines.map((line, i) => (
           <Text key={i}>{line || " "}</Text>
         ))}
-        {focused && <Text color="green">▋</Text>}
       </Box>
 
       {!focused && (
-        <Box justifyContent="center" flexShrink={0}>
+        <Box justifyContent="center" flexShrink={0} paddingBottom={1}>
           <Text dimColor>[Tab to focus]</Text>
         </Box>
       )}
