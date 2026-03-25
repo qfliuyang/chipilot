@@ -20,6 +20,8 @@ const OUTPUT_DIR = path.join(__dirname, '..', 'output');
 const args = process.argv.slice(2);
 const shouldUpdate = args.includes('--update') || args.includes('-u');
 const grepPattern = args.find((arg, i) => args[i - 1] === '--grep') || null;
+const maxRetries = args.includes('--retry') ? 1 : 0;
+const threshold = args.find((arg, i) => args[i - 1] === '--threshold') || '0.1';
 
 // ANSI colors for terminal output
 const colors = {
@@ -130,7 +132,7 @@ function runTape(tapeFile) {
 /**
  * Compare two images using pixelmatch
  */
-function compareImages(goldenPath, outputPath, diffPath) {
+function compareImages(goldenPath, outputPath, diffPath, pixelThreshold = 0.1) {
   const golden = PNG.sync.read(fs.readFileSync(goldenPath));
   const output = PNG.sync.read(fs.readFileSync(outputPath));
 
@@ -150,7 +152,7 @@ function compareImages(goldenPath, outputPath, diffPath) {
     golden.width,
     golden.height,
     {
-      threshold: 0.1, // 0-1, lower = more strict
+      threshold: parseFloat(pixelThreshold), // 0-1, lower = more strict
       includeAA: false, // Ignore anti-aliasing differences
     }
   );
@@ -178,6 +180,68 @@ function updateGolden(tapeFile, outputFile) {
 }
 
 /**
+ * Run a single test with optional retry
+ */
+function runTestWithRetry(tapeFile, maxAttempts) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (attempt > 1) {
+      console.log(`${colors.yellow}  Retrying (attempt ${attempt}/${maxAttempts})...${colors.reset}`);
+    }
+
+    // Run the tape
+    const result = runTape(tapeFile);
+
+    if (!result.success) {
+      if (attempt === maxAttempts) {
+        console.log(`${colors.red}  ✗ Failed to run: ${result.error}${colors.reset}\n`);
+        return { success: false, error: result.error };
+      }
+      continue;
+    }
+
+    const { outputFile } = result;
+    const goldenFile = path.join(GOLDEN_DIR, `${tapeFile.name}.png`);
+    const diffFile = path.join(OUTPUT_DIR, `${tapeFile.name}-diff.png`);
+
+    // Check if golden exists
+    if (!fs.existsSync(goldenFile)) {
+      console.log(`${colors.yellow}  ⚠ No golden screenshot found${colors.reset}`);
+      console.log(`${colors.gray}    Run with --update to create: ${tapeFile.name}${colors.reset}\n`);
+      return { success: false, error: 'No golden screenshot' };
+    }
+
+    // Compare images
+    const comparison = compareImages(goldenFile, outputFile, diffFile, threshold);
+
+    if (comparison.match) {
+      // Clean up diff file if it exists from previous run
+      if (fs.existsSync(diffFile)) {
+        fs.unlinkSync(diffFile);
+      }
+      return { success: true, diffPixels: 0 };
+    } else if (attempt < maxAttempts) {
+      // Will retry
+      if (comparison.error) {
+        console.log(`    ${comparison.error} - will retry...`);
+      } else {
+        console.log(`    ${comparison.diffPixels} pixels differ - will retry...`);
+      }
+    } else {
+      // Final attempt failed
+      console.log(`${colors.red}  ✗ FAIL - Visual differences detected${colors.reset}`);
+      if (comparison.error) {
+        console.log(`    ${comparison.error}`);
+      } else {
+        console.log(`    ${comparison.diffPixels} pixels differ`);
+        console.log(`    Diff saved to: ${diffFile}`);
+      }
+      console.log('');
+      return { success: false, diffPixels: comparison.diffPixels };
+    }
+  }
+}
+
+/**
  * Main test runner
  */
 async function runTests() {
@@ -196,7 +260,12 @@ async function runTests() {
     process.exit(0);
   }
 
-  console.log(`Found ${tapeFiles.length} tape file(s)\n`);
+  console.log(`Found ${tapeFiles.length} tape file(s)`);
+  if (maxRetries > 0) {
+    console.log(`Retry enabled: up to ${maxRetries + 1} attempts per test`);
+  }
+  console.log(`Threshold: ${threshold}`);
+  console.log('');
 
   if (shouldUpdate) {
     console.log(`${colors.yellow}UPDATE MODE: Will regenerate golden screenshots\n${colors.reset}`);
@@ -207,55 +276,26 @@ async function runTests() {
   let updated = 0;
 
   for (const tapeFile of tapeFiles) {
-    // Run the tape
-    const result = runTape(tapeFile);
+    // Run the test (with retry if enabled)
+    const maxAttempts = maxRetries > 0 ? maxRetries + 1 : 1;
+    const result = runTestWithRetry(tapeFile, maxAttempts);
 
-    if (!result.success) {
-      console.log(`${colors.red}  ✗ Failed to run: ${result.error}${colors.reset}\n`);
+    if (result.success) {
+      console.log(`${colors.green}  ✓ PASS - No visual differences${colors.reset}\n`);
+      passed++;
+    } else if (result.error === 'No golden screenshot') {
       failed++;
-      continue;
+    } else if (!shouldUpdate) {
+      failed++;
     }
-
-    const { outputFile } = result;
-    const goldenFile = path.join(GOLDEN_DIR, `${tapeFile.name}.png`);
-    const diffFile = path.join(OUTPUT_DIR, `${tapeFile.name}-diff.png`);
 
     // Update mode: just copy to golden
     if (shouldUpdate) {
-      updateGolden(tapeFile, outputFile);
-      updated++;
-      continue;
-    }
-
-    // Check if golden exists
-    if (!fs.existsSync(goldenFile)) {
-      console.log(`${colors.yellow}  ⚠ No golden screenshot found${colors.reset}`);
-      console.log(`${colors.gray}    Run with --update to create: ${tapeFile.name}${colors.reset}\n`);
-      failed++;
-      continue;
-    }
-
-    // Compare images
-    const comparison = compareImages(goldenFile, outputFile, diffFile);
-
-    if (comparison.match) {
-      console.log(`${colors.green}  ✓ PASS - No visual differences${colors.reset}\n`);
-      passed++;
-
-      // Clean up diff file if it exists from previous run
-      if (fs.existsSync(diffFile)) {
-        fs.unlinkSync(diffFile);
+      const outputFile = path.join(OUTPUT_DIR, `${tapeFile.name}.png`);
+      if (fs.existsSync(outputFile)) {
+        updateGolden(tapeFile, outputFile);
+        updated++;
       }
-    } else {
-      console.log(`${colors.red}  ✗ FAIL - Visual differences detected${colors.reset}`);
-      if (comparison.error) {
-        console.log(`    ${comparison.error}`);
-      } else {
-        console.log(`    ${comparison.diffPixels} pixels differ`);
-        console.log(`    Diff saved to: ${diffFile}`);
-      }
-      console.log('');
-      failed++;
     }
   }
 

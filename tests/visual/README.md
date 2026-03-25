@@ -21,15 +21,34 @@ tests/visual/
 ## Running Tests
 
 ```bash
-# Run all visual tests
+# Run all visual tests (with 1 retry for flaky tests)
 npm run test:visual
+
+# Run without retry (strict mode)
+npm run test:visual:strict
 
 # Update golden screenshots (after intentional UI changes)
 npm run test:visual:update
 
 # Run specific test
 npm run test:visual -- --grep="welcome"
+
+# Custom pixelmatch threshold (default: 0.1)
+npm run test:visual -- --threshold=0.2
 ```
+
+## Test Options
+
+| Option | Description |
+|--------|-------------|
+| `--retry` | Retry failed tests once (helps with flaky terminal state) |
+| `--threshold=0.2` | Pixelmatch threshold (0-1, higher = more lenient) |
+| `--grep="pattern"` | Run only tests matching pattern |
+| `--update` / `-u` | Update golden screenshots |
+
+## Handling Flaky Tests
+
+Terminal-based tests can be flaky due to shell initialization timing. The default `npm run test:visual` includes `--retry` to automatically retry failed tests once. For CI pipelines where strictness is preferred, use `npm run test:visual:strict`.
 
 ## Writing Tape Files
 

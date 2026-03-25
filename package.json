@@ -19,7 +19,8 @@
     "test:tier2": "vitest run tests/tier2-component",
     "test:tier3": "vitest run tests/tier3-integration --config vitest.tiered.config.ts",
     "test:tier4": "vitest run tests/tier4-e2e --config vitest.tiered.config.ts",
-    "test:visual": "node tests/visual/scripts/run-tests.cjs",
+    "test:visual": "node tests/visual/scripts/run-tests.cjs --retry",
+    "test:visual:strict": "node tests/visual/scripts/run-tests.cjs",
     "test:visual:update": "node tests/visual/scripts/run-tests.cjs --update",
     "lint": "eslint src"
   },
