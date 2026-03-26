@@ -503,7 +503,7 @@ export class MessageBus extends EventEmitter {
     const timestamp = new Date().toISOString();
     const prefix = `[MessageBus:${level.toUpperCase()}] ${timestamp}`;
 
-    // eslint-disable-next-line no-console
+     
     console.log(prefix, ...args);
   }
 }

@@ -21,7 +21,9 @@ export default defineConfig({
     "chalk",
     "commander",
     "conf",
+    "xterm-headless",
   ],
+  noExternal: ["xterm-addon-serialize"],
   esbuildOptions(options) {
     options.banner = {
       js: "// @ts-check",

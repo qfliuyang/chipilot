@@ -593,7 +593,6 @@ export class KnowledgeCuratorAgent extends BaseAgent {
    * @returns Knowledge base statistics
    */
   async getKnowledgeStats(): Promise<KnowledgeStats> {
-    const kbStats = this.knowledgeBase.getStats();
     const patterns = this.knowledgeBase.getAllReflectivePatterns();
 
     // Calculate command usage stats from patterns

@@ -15,7 +15,7 @@
 
 import { BaseAgent, AgentMessage, BaseAgentOptions } from "./BaseAgent";
 import KnowledgeBase, { Pattern } from "./KnowledgeBase";
-import { AgentId, MessagePriority } from "./MessageBus";
+import { AgentId } from "./MessageBus";
 
 // ============================================================================
 // Types and Interfaces
@@ -1126,7 +1126,7 @@ export class LearningAgent extends BaseAgent {
     return false;
   }
 
-  private calculateFailureConfidence(error: Error, context: ExecutionContext): number {
+  private calculateFailureConfidence(error: Error, _context: ExecutionContext): number {
     // Higher confidence for common, well-understood error types
     const failureType = this.classifyFailureType(error);
 

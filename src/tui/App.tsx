@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useMemo, useEffect } from "react";
-import { Box, Text, useApp, useInput, useStdout, render, Spacer } from "ink";
+import { Box, Text, useApp, useInput, useStdout, render } from "ink";
 import TextInput from "ink-text-input";
 import { TerminalPane } from "./TerminalPane.js";
 import { ApprovalModal } from "./ApprovalModal.js";
@@ -177,7 +177,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   const [scrollOffset, setScrollOffset] = useState(0);
   const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>([]);
   const [currentGoal, setCurrentGoal] = useState<string | undefined>();
-  const [goalResult, setGoalResult] = useState<GoalResult | null>(null);
+  const [, setGoalResult] = useState<GoalResult | null>(null);
 
   // Refs for stable instances (created once)
   const sessionRef = useRef<TerminalSession | null>(null);
@@ -395,7 +395,6 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   // Calculate visible messages with scroll support
   const maxVisibleMessages = Math.max(3, Math.floor((mainHeight - 4) / 3));
   const totalMessages = messages.length;
-  const maxScroll = Math.max(0, totalMessages - maxVisibleMessages);
 
   // Auto-reset scroll when at bottom and new messages arrive
   const visibleMessages = useMemo(() => {

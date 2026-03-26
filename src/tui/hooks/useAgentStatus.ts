@@ -10,7 +10,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageBus, AgentMessage, AgentId } from "../../agents/MessageBus";
 import { AgentState } from "../../agents/BaseAgent";
-import { ExecutionPlan, PlanStatus } from "../../agents/PlannerAgent";
 
 /**
  * Status information for a single agent
@@ -132,7 +131,6 @@ export function useAgentStatus(messageBus: MessageBus): UseAgentStatusReturn {
 
   // Use refs for batching updates
   const pendingAgentUpdates = useRef<Map<string, Partial<AgentStatus>>>(new Map());
-  const pendingMessages = useRef<AgentMessage[]>([]);
   const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   /**
@@ -149,7 +147,6 @@ export function useAgentStatus(messageBus: MessageBus): UseAgentStatusReturn {
     const errorAgents = agents.filter((a) => a.state === "error");
     const pausedAgents = agents.filter((a) => a.state === "paused");
     const stoppedAgents = agents.filter((a) => a.state === "stopped");
-    const runningAgents = agents.filter((a) => a.state === "running");
 
     // Critical: Multiple errors or orchestrator stopped
     if (errorAgents.length >= 2 || errorCount >= 3) {

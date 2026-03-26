@@ -490,7 +490,7 @@ export class CommandSynthesisAgent extends BaseAgent {
   /**
    * Extract command from RAG synthesized response.
    */
-  private extractCommandFromRAG(response: string, tool: EDATool): string | null {
+  private extractCommandFromRAG(response: string, _tool: EDATool): string | null {
     // Look for code blocks with command
     const codeBlockMatch = response.match(/```(?:tcl)?\s*\n?([^`]+)```/);
     if (codeBlockMatch) {
@@ -519,7 +519,7 @@ export class CommandSynthesisAgent extends BaseAgent {
   /**
    * Adapt a command example to match the current intent.
    */
-  private adaptCommandFromExample(example: CommandExample, intent: string): string {
+  private adaptCommandFromExample(example: CommandExample, _intent: string): string {
     // For now, return the example command as-is
     // Future: parse intent and substitute parameters
     return example.command;

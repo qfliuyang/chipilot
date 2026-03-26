@@ -834,7 +834,7 @@ export class OrchestratorAgent extends BaseAgent {
 
   private async handleConversation(
     intent: Intent,
-    context?: UserContext
+    _context?: UserContext
   ): Promise<GoalResult> {
     const input = intent.originalInput.toLowerCase();
 
@@ -884,8 +884,8 @@ export class OrchestratorAgent extends BaseAgent {
   }
 
   private async handleStatusQuery(
-    intent: Intent,
-    context?: UserContext
+    _intent: Intent,
+    _context?: UserContext
   ): Promise<GoalResult> {
     const status = this.getSystemStatus();
 
@@ -992,7 +992,7 @@ export class OrchestratorAgent extends BaseAgent {
     });
   }
 
-  private async handleUserInterrupt(event: SystemEvent): Promise<void> {
+  private async handleUserInterrupt(_event: SystemEvent): Promise<void> {
     this.log("info", "User interrupt received");
     await this.emergencyStop();
   }
@@ -1009,7 +1009,7 @@ export class OrchestratorAgent extends BaseAgent {
     });
   }
 
-  private async handleTerminalDisconnected(event: SystemEvent): Promise<void> {
+  private async handleTerminalDisconnected(_event: SystemEvent): Promise<void> {
     this.log("error", "Terminal disconnected");
 
     // Pause operations until terminal reconnects
@@ -1097,7 +1097,7 @@ export class OrchestratorAgent extends BaseAgent {
     const timestamp = new Date().toISOString();
     const prefix = `[OrchestratorAgent:${level.toUpperCase()}] ${timestamp}`;
 
-    // eslint-disable-next-line no-console
+     
     console.log(prefix, ...args);
   }
 }

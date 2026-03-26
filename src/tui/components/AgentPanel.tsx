@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text, Spacer } from "ink";
-import type { AgentState } from "../agents/BaseAgent.js";
-import type { AgentMessage } from "../agents/MessageBus.js";
+import type { AgentState } from "../../agents/BaseAgent.js";
+import type { AgentMessage } from "../../agents/MessageBus.js";
 
 /** Agent status information for display */
 export interface AgentStatus {

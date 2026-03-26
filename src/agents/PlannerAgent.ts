@@ -746,7 +746,7 @@ export class PlannerAgent extends BaseAgent {
   /**
    * Query KnowledgeBase for workflow template matching the goal.
    */
-  private async queryWorkflowTemplate(goal: string, tool?: string): Promise<unknown | null> {
+  private async queryWorkflowTemplate(goal: string, _tool?: string): Promise<unknown | null> {
     if (!this.knowledgeBase) {
       return null;
     }
@@ -1078,7 +1078,7 @@ export class PlannerAgent extends BaseAgent {
   /**
    * Generate a fallback task for a failed task.
    */
-  private async generateFallbackTask(task: Task, plan: ExecutionPlan): Promise<Task | null> {
+  private async generateFallbackTask(task: Task, _plan: ExecutionPlan): Promise<Task | null> {
     // Simple fallback strategies
     if (task.type === "synthesize") {
       // Fallback: try with different parameters or simpler approach
@@ -1342,7 +1342,7 @@ export class PlannerAgent extends BaseAgent {
     const timestamp = new Date().toISOString();
     const prefix = `[PlannerAgent:${level.toUpperCase()}] ${timestamp}`;
 
-    // eslint-disable-next-line no-console
+     
     console.log(prefix, ...args);
   }
 }

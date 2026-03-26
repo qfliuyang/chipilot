@@ -1,5 +1,15 @@
-import { Terminal } from "xterm-headless";
-import { SerializeAddon } from "xterm-addon-serialize";
+// Import polyfill BEFORE any xterm imports
+import "./xterm-polyfill.js";
+
+import type { Terminal as TerminalType, SerializeAddon as SerializeAddonType } from "../types/xterm-modules.js";
+
+// Import xterm packages after polyfill
+import xtermHeadless from "xterm-headless";
+import xtermAddonSerialize from "xterm-addon-serialize";
+
+// Extract constructors
+const Terminal = xtermHeadless.Terminal;
+const SerializeAddon = xtermAddonSerialize.SerializeAddon;
 
 /**
  * VirtualTerminal - Proper terminal emulation using xterm.js
@@ -11,8 +21,8 @@ import { SerializeAddon } from "xterm-addon-serialize";
  * - Screen clearing
  */
 export class VirtualTerminal {
-  private terminal: Terminal;
-  private serializeAddon: SerializeAddon;
+  private terminal: TerminalType;
+  private serializeAddon: SerializeAddonType;
 
   constructor(cols: number, rows: number) {
     this.terminal = new Terminal({
@@ -20,9 +30,9 @@ export class VirtualTerminal {
       rows,
       cursorBlink: false,
       allowProposedApi: true,
-    });
+    }) as TerminalType;
 
-    this.serializeAddon = new SerializeAddon();
+    this.serializeAddon = new SerializeAddon() as SerializeAddonType;
     this.terminal.loadAddon(this.serializeAddon);
   }
 

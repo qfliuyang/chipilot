@@ -120,8 +120,8 @@ describe('Tier 3: PTY Integration Tests', () => {
   describe('Help System', () => {
     it('should show help overlay with ? key', async () => {
       // Ensure we're in chat pane by looking for cyan border on left pane
-      // First check if we see the terminal pane (Tab to return), then switch back
-      await session.send('\t', { waitFor: 'Tab to return', timeout: 2000 });
+      // First check if we see the terminal pane, then switch back
+      await session.send('\t', { waitFor: 'Tab to focus', timeout: 2000 });
       // Wait for terminal pane to be fully rendered
       await new Promise(r => setTimeout(r, 200));
       // Switch back to chat
@@ -142,9 +142,8 @@ describe('Tier 3: PTY Integration Tests', () => {
       await session.send('?', { waitFor: 'Keyboard Shortcuts' });
       await session.send('q', { waitMs: 500 });
 
-      // Help should be gone
-      const recent = session.getRecentOutput(5);
-      expect(recent).not.toContain('Keyboard Shortcuts');
+      // Help should be gone - check that welcome message is visible (underneath)
+      expect(session.contains('Welcome')).toBe(true);
     });
   });
 

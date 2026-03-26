@@ -671,7 +671,7 @@ export class VerificationAgent extends BaseAgent {
     riskMatches: Array<{ pattern: RiskPattern }>,
     errorPatterns: ErrorPattern[],
     concerns: string[],
-    context?: string
+    _context?: string
   ): { approved: boolean; requiresUserConfirmation: boolean; reasoning: string } {
     // Critical risk commands are rejected by default
     if (riskLevel === "critical") {

@@ -14,8 +14,8 @@
  */
 
 import { BaseAgent, AgentMessage, BaseAgentOptions } from "./BaseAgent";
-import { MessageBus, AgentId, getMessageBus, MessagePriority } from "./MessageBus";
-import { KnowledgeBase, Pattern } from "./KnowledgeBase";
+import { MessageBus, getMessageBus } from "./MessageBus";
+import { KnowledgeBase } from "./KnowledgeBase";
 
 /**
  * Types of errors that can occur during execution
@@ -619,7 +619,7 @@ export class RecoveryAgent extends BaseAgent {
    */
   async diagnoseError(
     errorMessage: string,
-    context?: Record<string, unknown>
+    _context?: Record<string, unknown>
   ): Promise<ErrorDiagnosis> {
     this.stats.errorsDiagnosed++;
 
@@ -1151,7 +1151,7 @@ export class RecoveryAgent extends BaseAgent {
     };
   }
 
-  private inferRootCause(errorType: ErrorType, errorMessage: string): string {
+  private inferRootCause(errorType: ErrorType, _errorMessage: string): string {
     const rootCauses: Record<ErrorType, string> = {
       syntax: "Command syntax incorrect or command not recognized",
       tool: "EDA tool internal error or crash",
@@ -1223,7 +1223,7 @@ export class RecoveryAgent extends BaseAgent {
     };
   }
 
-  private createReplanAction(diagnosis: ErrorDiagnosis): RecoveryAction {
+  private createReplanAction(_diagnosis: ErrorDiagnosis): RecoveryAction {
     return {
       id: this.generateId("act"),
       strategy: "replan",
@@ -1234,7 +1234,7 @@ export class RecoveryAgent extends BaseAgent {
     };
   }
 
-  private createEscalateAction(diagnosis: ErrorDiagnosis): RecoveryAction {
+  private createEscalateAction(_diagnosis: ErrorDiagnosis): RecoveryAction {
     return {
       id: this.generateId("act"),
       strategy: "escalate",
@@ -1312,7 +1312,7 @@ export class RecoveryAgent extends BaseAgent {
     }
   }
 
-  private updateStats(result: RecoveryResult, startTime: number): void {
+  private updateStats(result: RecoveryResult, _startTime: number): void {
     this.recoveryHistory.push(result);
 
     if (result.success) {
@@ -1344,10 +1344,10 @@ export class RecoveryAgent extends BaseAgent {
     const prefix = `[RecoveryAgent:${this.id}:${level.toUpperCase()}] ${timestamp}`;
 
     if (level === "debug") {
-      // eslint-disable-next-line no-console
+       
       if (process.env.DEBUG) console.log(prefix, message, meta ?? "");
     } else {
-      // eslint-disable-next-line no-console
+       
       console.log(prefix, message, meta ?? "");
     }
   }

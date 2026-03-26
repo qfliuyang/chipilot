@@ -101,7 +101,7 @@ const EDA_PROMPT_PATTERNS: Record<PromptType, RegExp> = {
   tcl: /%\s*$/,
 
   // Shell prompts (various)
-  shell: /(?:[\$#%>]|\w+@[\w-]+[:~][\$#]|\[.*\][\$#])\s*$/,
+  shell: /(?:[$#%>]|\w+@[\w-]+[:~][$#]|\[.*\][$#])\s*$/,
 
   // Unknown/no match
   unknown: /(?!)/, // Never matches
@@ -578,7 +578,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
    */
   private analyzeOutput(data: string): void {
     // Check for errors in the new data
-    for (const { pattern, type } of ERROR_PATTERNS) {
+    for (const { pattern } of ERROR_PATTERNS) {
       if (pattern.test(data)) {
         // Extract error context (lines around the error)
         const lines = this.outputBuffer.split("\n");
@@ -661,7 +661,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
     const timestamp = new Date().toISOString();
     const prefix = `[TerminalPerception:${level.toUpperCase()}] ${timestamp}`;
 
-    // eslint-disable-next-line no-console
+     
     console.log(prefix, ...args);
   }
 }

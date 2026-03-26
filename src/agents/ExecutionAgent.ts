@@ -472,7 +472,7 @@ export class ExecutionAgent extends BaseAgent {
   private detectPrompt(output: string): void {
     // Common EDA tool prompt patterns
     const promptPatterns = [
-      /^\s*[\w\-]+>\s*$/, // Generic tool prompt: "innovus>"
+      /^\s*[\w-]+>\s*$/, // Generic tool prompt: "innovus>"
       /^\s*%\s*$/, // Tcl prompt: "%"
       /^\s*\$\s*$/, // Shell prompt: "$"
       /^\s*#\s*$/, // Root shell prompt: "#"
