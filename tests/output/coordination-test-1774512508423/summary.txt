@@ -1,0 +1,118 @@
+
+================================================================================
+               CHIPILOT AGENT COORDINATION TEST REPORT
+================================================================================
+
+Test Timestamp: 2026-03-26T08:08:58.725Z
+Coordination Score: 68.2/100 (GOOD)
+
+--------------------------------------------------------------------------------
+                           EXECUTIVE SUMMARY
+--------------------------------------------------------------------------------
+
+Total Events Processed:     3
+Messages Exchanged:         35
+Active Agents:              4/6
+Workflow Completion Rate:   75.0%
+
+--------------------------------------------------------------------------------
+                        AGENT CONTRIBUTION ANALYSIS
+--------------------------------------------------------------------------------
+
+1. ORCHESTRATOR AGENT
+   Role: Goal interpretation, intent classification, routing
+   Status: INACTIVE
+   Activities: 0
+   Assessment: Limited activity observed
+
+2. PLANNER AGENT
+   Role: Plan creation, task decomposition, coordination
+   Status: INACTIVE
+   Plans Created: 0
+   Activities: 0
+   Assessment: Not creating plans
+
+3. TERMINAL PERCEPTION AGENT
+   Role: Terminal state monitoring, EDA prompt detection
+   Status: INACTIVE
+   Events Monitored: 0
+   Activities: 0
+   Assessment: Limited monitoring activity
+
+4. EXECUTION AGENT
+   Role: Safe command execution, resource management
+   Status: ACTIVE
+   Tasks Completed: 1
+   Activities: 0
+   Assessment: Executing commands with safety checks
+
+5. COMMAND SYNTHESIS AGENT
+   Role: TCL command generation, EDA tool syntax
+   Status: INACTIVE
+   Tasks Completed: 0
+   Activities: 0
+   Assessment: Not generating commands
+
+6. KNOWLEDGE CURATOR AGENT
+   Role: Knowledge retrieval, RAG queries
+   Status: INACTIVE
+   Queries Processed: 0
+   Activities: 0
+   Assessment: Limited knowledge queries
+
+--------------------------------------------------------------------------------
+                        COORDINATION QUALITY METRICS
+--------------------------------------------------------------------------------
+
+Message Type Diversity:     2 unique types
+Agent Participation Rate:   66.7%
+Targeted Messages:          35
+Broadcast Messages:         0
+
+--------------------------------------------------------------------------------
+                        QUESTION TEST RESULTS
+--------------------------------------------------------------------------------
+
+
+Q1: How do I set up low power optimization with clock gating in Genus?...
+       Status: ✓ PASS | Duration: 2ms | Plan: N/A
+
+Q2: What is the proper way to constrain async clock domain crossings in SD...
+       Status: ✓ PASS | Duration: 0ms | Plan: N/A
+
+Q3: How do I perform ECO placement for cells after metal layer routing is ...
+       Status: ✗ FAIL | Duration: 30002ms | Plan: N/A
+
+Q4: What steps should I take to close timing on a design with 50ps setup v...
+       Status: ✓ PASS | Duration: 1ms | Plan: N/A
+
+
+--------------------------------------------------------------------------------
+                        COMPLEX SCENARIO TEST
+--------------------------------------------------------------------------------
+
+Scenario: Full Flow: 7nm SOC Physical Design
+Duration: 2ms
+Description:
+Design: 7nm mobile SOC with quad-core ARM, GPU, and LPDDR5
+Current Stage: Post-CTS, pre-route
+Issues:
+1. Setup violations on critical paths (>100ps WNS)
+2. Congestion in memory controller region
+3. Clock skew variation across voltage domains
+4. IR drop concerns on power grid
+
+Goal: Achieve timing closure with clean routing and power integrity.
+
+--------------------------------------------------------------------------------
+                        RECOMMENDATIONS
+--------------------------------------------------------------------------------
+
+• INCREASE AGENT PARTICIPATION: Some agents are not engaging in the workflow. Check MessageBus registration and task routing.
+• ACTIVATE COMMAND SYNTHESIS: Commands are not being generated. Consider triggering synthesize tasks more aggressively.
+• KNOWLEDGE RETRIEVAL: KnowledgeCurator not querying knowledge base. Verify query_knowledge task assignments.
+• WORKFLOW RELIABILITY: Some questions failed processing. Review error handling in agent task execution.
+
+================================================================================
+                              END OF REPORT
+================================================================================

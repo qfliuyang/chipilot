@@ -14,6 +14,7 @@
 
 import { BaseAgent, AgentMessage, BaseAgentOptions } from "./BaseAgent";
 import { KnowledgeBase, Pattern } from "./KnowledgeBase";
+import type { AgentId, Message as BusAgentMessage } from "./MessageBus";
 
 /**
  * Risk levels for command assessment
@@ -306,11 +307,47 @@ export class VerificationAgent extends BaseAgent {
 
   /**
    * Lifecycle hook called during initialization.
-   * Validates that KnowledgeBase is available.
+   * Validates that KnowledgeBase is available and registers with MessageBus.
    */
   protected async onInitialize(): Promise<void> {
     if (!this.knowledgeBase) {
       throw new Error("VerificationAgent requires a KnowledgeBase instance");
+    }
+
+    // Register with MessageBus if available
+    if (this.messageBus) {
+      this.messageBus.registerAgent(this.id as AgentId, async (message) => {
+        // Convert MessageBus format to BaseAgent format
+        const convertedMessage: AgentMessage = {
+          id: message.id,
+          type: message.type,
+          sender: message.from,
+          recipient: message.to === "broadcast" ? "broadcast" : message.to,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority,
+          correlationId: message.correlationId,
+        };
+        await this.receiveMessage(convertedMessage);
+      });
+
+      // Set up event forwarding from BaseAgent to MessageBus
+      this.on("sendMessage", (message: AgentMessage) => {
+        // Convert BaseAgent format to MessageBus format
+        const busMessage: BusAgentMessage = {
+          id: message.id,
+          from: message.sender as AgentId,
+          to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
+          type: message.type as import("./MessageBus").MessageType,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority ?? "normal",
+          correlationId: message.correlationId,
+        };
+        this.messageBus!.send(busMessage).catch((err) => {
+          console.error("[VerificationAgent] Failed to send message via MessageBus:", err);
+        });
+      });
     }
 
     console.log(`[VerificationAgent:${this.id}] Initialized with ${this.riskPatterns.length} risk patterns`);

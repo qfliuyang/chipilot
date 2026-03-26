@@ -128,6 +128,22 @@ class AgentTelemetry {
     this.agentStats[agentId].events++;
   }
 
+  // Pre-initialize agent stats for all expected agents to ensure tracking
+  preInitializeAgents(agentIds) {
+    for (const agentId of agentIds) {
+      if (!this.agentStats[agentId]) {
+        this.agentStats[agentId] = {
+          events: 0,
+          messagesSent: 0,
+          messagesReceived: 0,
+          tasksCompleted: 0,
+          contributions: [],
+          activities: [],
+        };
+      }
+    }
+  }
+
   recordMessage(from, to, type, payload) {
     this.messageFlow.push({ from, to, type, payload, timestamp: Date.now() });
     if (this.agentStats[from]) this.agentStats[from].messagesSent++;
@@ -174,7 +190,7 @@ class AgentTelemetry {
     const broadcastMessages = this.messageFlow.filter(m => m.to === "broadcast").length;
 
     // Participation: % of expected agents that contributed
-    const participation = uniqueAgents / 6;
+    const participation = uniqueAgents / 7;
 
     // Coordination: ratio of targeted messages to broadcasts
     const coordination = totalMessages > 0 ? crossAgentMessages / totalMessages : 0;
@@ -221,6 +237,17 @@ async function runTest() {
 
   const telemetry = new AgentTelemetry();
 
+  // Pre-initialize stats for all expected agents
+  telemetry.preInitializeAgents([
+    "planner",
+    "orchestrator",
+    "terminalPerception",
+    "execution",
+    "commandSynthesis",
+    "knowledgeCurator",
+    "verification",
+  ]);
+
   // Import and initialize all agents
   console.log("--- Initializing Agent Ecosystem ---\n");
 
@@ -233,6 +260,7 @@ async function runTest() {
       ExecutionAgent,
       CommandSynthesisAgent,
       KnowledgeCuratorAgent,
+      VerificationAgent,
       getMessageBus,
       KnowledgeBase,
     } = await import("./dist/index.js");
@@ -291,6 +319,13 @@ async function runTest() {
       messageBus,
     });
 
+    agents.verification = new VerificationAgent({
+      id: "verification",
+      name: "Verification",
+      knowledgeBase,
+      messageBus,
+    });
+
     // Hook up telemetry for all agents
     Object.entries(agents).forEach(([name, agent]) => {
       // Hook into message sending
@@ -308,6 +343,7 @@ async function runTest() {
       // Listen to all events
       agent.on("*", (eventName, data) => {
         telemetry.recordEvent(name, eventName, data);
+        telemetry.recordAgentActivity(name, eventName, data);
       });
     });
 
@@ -319,9 +355,10 @@ async function runTest() {
       agents.execution.initialize(),
       agents.commandSynthesis.initialize(),
       agents.knowledgeCurator.initialize(),
+      agents.verification.initialize(),
     ]);
 
-    console.log("All 6 agents initialized successfully\n");
+    console.log("All 7 agents initialized successfully\n");
 
     // Start all agents
     await Promise.all([
@@ -331,6 +368,7 @@ async function runTest() {
       agents.execution.start(),
       agents.commandSynthesis.start(),
       agents.knowledgeCurator.start(),
+      agents.verification.start(),
     ]);
 
     console.log("All agents started\n");
@@ -456,12 +494,19 @@ async function runTest() {
         queriesProcessed: telemetry.events.filter(e => e.agentId === "knowledge-curator" && e.eventType === "knowledge.queried").length,
         evaluation: ((telemetry.agentStats["knowledge-curator"]?.contributions.length || 0) > 0 || (telemetry.agentStats["knowledge-curator"]?.activities?.length || 0) > 0) ? "ACTIVE" : "INACTIVE",
       },
+      verification: {
+        role: "Command verification and risk analysis",
+        contribution: telemetry.agentStats.verification?.contributions.length || 0,
+        activities: telemetry.agentStats.verification?.activities?.length || 0,
+        verificationsCompleted: telemetry.events.filter(e => e.agentId === "verification" && e.eventType === "verification.completed").length,
+        evaluation: ((telemetry.agentStats.verification?.contributions.length || 0) > 0 || (telemetry.agentStats.verification?.activities?.length || 0) > 0) ? "ACTIVE" : "INACTIVE",
+      },
     };
 
     // Coordination quality assessment
     report.coordinationQuality = {
       messageDiversity: [...new Set(telemetry.messageFlow.map(m => m.type))].length,
-      agentParticipation: Object.keys(telemetry.agentStats).length / 6,
+      agentParticipation: Object.keys(telemetry.agentStats).length / 7,
       crossAgentMessaging: telemetry.messageFlow.filter(m => m.from !== m.to && m.to !== "broadcast").length,
       broadcastEfficiency: telemetry.messageFlow.filter(m => m.to === "broadcast").length,
       workflowCompletion: questionResults.filter(r => r.success).length / questionResults.length,
@@ -487,6 +532,7 @@ async function runTest() {
       agents.execution.stop(),
       agents.commandSynthesis.stop(),
       agents.knowledgeCurator.stop(),
+      agents.verification.stop(),
     ]);
     console.log("All agents stopped\n");
 
@@ -514,7 +560,7 @@ Coordination Score: ${report.summary.coordinationScore}/100 (${report.summary.ev
 
 Total Events Processed:     ${report.summary.totalEvents}
 Messages Exchanged:         ${report.summary.totalMessages}
-Active Agents:              ${report.summary.uniqueAgents}/6
+Active Agents:              ${report.summary.uniqueAgents}/7
 Workflow Completion Rate:   ${(report.coordinationQuality.workflowCompletion * 100).toFixed(1)}%
 
 --------------------------------------------------------------------------------
@@ -561,6 +607,13 @@ Workflow Completion Rate:   ${(report.coordinationQuality.workflowCompletion * 1
    Queries Processed: ${report.contributionAnalysis.knowledgeCurator.queriesProcessed}
    Activities: ${report.contributionAnalysis.knowledgeCurator.activities || 0}
    Assessment: ${report.contributionAnalysis.knowledgeCurator.evaluation === "ACTIVE" ? "Retrieving relevant EDA knowledge" : "Limited knowledge queries"}
+
+7. VERIFICATION AGENT
+   Role: Command verification, risk analysis
+   Status: ${report.contributionAnalysis.verification?.evaluation || "INACTIVE"}
+   Verifications: ${report.contributionAnalysis.verification?.verificationsCompleted || 0}
+   Activities: ${report.contributionAnalysis.verification?.activities || 0}
+   Assessment: ${report.contributionAnalysis.verification?.evaluation === "ACTIVE" ? "Verifying commands for safety" : "No verification tasks"}
 
 --------------------------------------------------------------------------------
                         COORDINATION QUALITY METRICS
