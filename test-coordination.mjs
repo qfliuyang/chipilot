@@ -63,33 +63,56 @@ import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Randomly selected challenging EDA questions
+// Complex technical EDA questions designed to test full agent coordination
+// Each question requires multiple agents to collaborate for complete solution
 const QUESTION_SETS = [
+  // Set 1: Clock and Timing Challenges
   [
-    "How do I optimize clock tree synthesis for a 500MHz ARM Cortex design in Innovus?",
-    "What are the best practices for handling multi-corner multi-mode analysis in Tempus?",
-    "How do I fix congestion issues in the routing stage when utilization is above 85%?",
-    "What commands should I use to analyze and fix electromigration violations in ICC2?",
+    "I have a 7nm AI accelerator design with 2GHz clock. Post-route timing shows 150ps setup violation on paths from clk_core to clk_ai. The violations are clustered around the MAC array. How do I fix this with CTS optimization in Innovus?",
+    "My design has multi-corner multi-mode with SS/FF/TT corners and func/test modes. Tempus reports different critical paths in each corner-mode combination. How do I constrain and analyze all scenarios simultaneously?",
+    "After CTS in a 5nm GPU design, I'm seeing 200ps clock skew within a clock domain. The H-tree synthesis completed but local skew is high. What commands should I run to analyze and fix this?",
+    "I need to implement dynamic voltage frequency scaling (DVFS) with three voltage corners: 0.75V, 0.85V, 0.95V. How do I set up multi-voltage timing analysis and ensure closure at all operating points?",
   ],
+  // Set 2: Physical Design and Congestion
   [
-    "How do I set up low power optimization with clock gating in Genus?",
-    "What is the proper way to constrain async clock domain crossings in SDC?",
-    "How do I perform ECO placement for cells after metal layer routing is complete?",
-    "What steps should I take to close timing on a design with 50ps setup violations?",
+    "My floorplan has 85% utilization but routing fails with congestion hotspots around the memory macros. I suspect pin access issues. What congestion analysis commands should I run in Innovus, and how do I fix the root cause?",
+    "I'm doing hierarchical design with 3 partitions. Each partition individually passes DRC but when assembled at top level, I see spacing violations between partitions. How do I handle partition boundaries and halo regions?",
+    "My chip has high-speed SerDes interfaces at 56Gbps. After placement, timing shows hold violations on the data paths. What placement and clock tree constraints should I apply to fix signal integrity?",
+    "Post-route DRC shows 50k violations, mostly M1/M2 short violations near standard cell pins. The design uses a 7nm finFET library. How do I analyze if this is a placement issue or routing strategy problem?",
   ],
+  // Set 3: Power and Reliability
   [
-    "How do I generate abstract views for hierarchical floorplanning with macros?",
-    "What is the methodology for SI-aware routing with crosstalk prevention?",
-    "How do I analyze and fix hold time violations caused by clock skew?",
-    "What commands verify LVS and DRC compliance before tapeout?",
+    "My SOC has static IR drop of 120mV in the GPU region during peak activity. Power grid analysis shows weak vertical straps. How do I insert additional power vias and widen straps without causing DRC violations?",
+    "Electromigration analysis in Ansys RedHawk shows violations on the VDD network for clocks >1GHz. What's the methodology to fix EM violations through wire widening and via doubling?",
+    "I need to implement power gating for a CPU cluster with retention flip-flops. The switch cells must handle 100mA rush current. How do I size the switches and verify the power-up sequence?",
+    "Thermal simulation shows hotspot at 125C in the NPU region. The junction temperature limit is 105C. What physical design changes can I make to reduce power density and improve heat dissipation?",
   ],
+  // Set 4: Verification and Signoff
   [
-    "How do I optimize power grid insertion for IR drop mitigation?",
-    "What is the best approach for scan chain insertion and optimization?",
-    "How do I handle ESD protection and guard ring placement around IO cells?",
-    "What methodology ensures signal integrity in high-speed DDR interfaces?",
+    "LVS reports 'soft connect' errors between power domains. The design has 4 power domains with level shifters. How do I debug connectivity issues between domains and ensure isolation cells are properly placed?",
+    "DRC shows 200 'OD enclosure' violations after metal fill insertion. The foundry requires 0.12um enclosure on OD layer. How do I adjust metal fill to fix these violations without impacting timing?",
+    "I'm running signoff STA with OCV derating. Setup Slack is 10ps positive but when I add AOCV, it becomes -25ps. How do I identify the paths most sensitive to variation and fix them?",
+    "Antenna check shows violations on clock inputs to flip-flops in the scan chain. The ratio is 800:1 exceeding the 500:1 limit. What's the proper way to insert antenna diodes during routing?",
+  ],
+  // Set 5: Advanced Methodology
+  [
+    "I need to implement a hierarchical flow with abstract views for a 16-core processor. Each core has unique clock gating. How do I generate timing models and ensure consistency between block-level and top-level timing?",
+    "My ECO requires adding 500 buffers to fix hold violations after metal fill. The masks are already frozen for layers M1-M3. How do I implement ECO routing using only upper metal layers?",
+    "I'm migrating a design from 7nm to 5nm. The cell library changed from bulk CMOS to finFET. What physical design constraints need updating for fin-specific DRC rules?",
+    "The design uses analog PLL with digital calibration logic. I need to create a fence region around the PLL with 50um keepout for noise isolation. How do I implement this in the floorplan?",
+  ],
+  // Set 6: Multi-Physics and Advanced Constraints
+  [
+    "Signal integrity analysis shows crosstalk-induced delay of 80ps on critical nets. The design uses double-patterning at M2. How do I apply track assignment and spacing constraints to minimize coupling?",
+    "I have a three-phase clock domain crossing from 500MHz to 1GHz with asynchronous reset. CDC analysis shows missing synchronizers. What's the proper CDC circuit implementation?",
+    "My chip-on-wafer simulation shows package-induced noise coupling into sensitive ADC inputs. The substrate is common. How do I implement guard rings and substrate contacts for isolation?",
+    "The foundry requires redundant via insertion for reliability. 40% of my vias are single-cut. How do I add double-cut vias without creating DRC violations or impacting timing?",
   ],
 ];
+
+// Generate a unique random seed for this test run
+const TEST_RUN_ID = Date.now();
+const TEST_TIMESTAMP = new Date().toISOString();
 
 const COMPLEX_SCENARIO = {
   name: "Full Flow: 7nm SOC Physical Design",
@@ -102,20 +125,43 @@ Issues:
 4. IR drop concerns on power grid
 
 Goal: Achieve timing closure with clean routing and power integrity.`,
-  expectedAgents: ["orchestrator", "planner", "terminal-perception", "execution", "command-synthesis", "knowledge-curator"],
+  expectedAgents: ["orchestrator", "planner", "terminal-perception", "execution", "command-synthesis", "knowledge-curator", "verification"],
 };
 
-// Agent telemetry collector
+// Agent telemetry collector with transcript and timeline
 class AgentTelemetry {
   constructor() {
     this.events = [];
     this.agentStats = {};
     this.messageFlow = [];
     this.coordinationScore = 0;
+    this.transcript = [];
+    this.timeline = [];
   }
 
   recordEvent(agentId, eventType, payload, timestamp = Date.now()) {
     this.events.push({ agentId, eventType, payload, timestamp });
+
+    // Add to transcript
+    this.transcript.push({
+      timestamp,
+      isoTime: new Date(timestamp).toISOString(),
+      agent: agentId,
+      type: eventType,
+      details: this.summarizeForTranscript(payload),
+      category: this.categorizeEvent(eventType),
+    });
+
+    // Add to timeline if significant
+    if (this.isSignificantEvent(eventType)) {
+      this.timeline.push({
+        timestamp,
+        agent: agentId,
+        event: eventType,
+        description: this.describeEvent(agentId, eventType, payload),
+      });
+    }
+
     if (!this.agentStats[agentId]) {
       this.agentStats[agentId] = {
         events: 0,
@@ -126,6 +172,36 @@ class AgentTelemetry {
       };
     }
     this.agentStats[agentId].events++;
+  }
+
+  categorizeEvent(eventType) {
+    if (eventType.includes("goal")) return "GOAL";
+    if (eventType.includes("plan")) return "PLANNING";
+    if (eventType.includes("task")) return "TASK";
+    if (eventType.includes("command")) return "COMMAND";
+    if (eventType.includes("knowledge")) return "KNOWLEDGE";
+    if (eventType.includes("verify")) return "VERIFICATION";
+    return "OTHER";
+  }
+
+  isSignificantEvent(eventType) {
+    return ["goal.complete", "plan.complete", "task.complete", "command.executed", "verification.complete"].includes(eventType);
+  }
+
+  describeEvent(agentId, eventType, data) {
+    if (eventType === "task.complete") return `${agentId} completes task`;
+    if (eventType === "goal.complete") return `${agentId} completes goal processing`;
+    if (eventType === "plan.complete") return `${agentId} completes plan execution`;
+    return `${agentId} ${eventType}`;
+  }
+
+  summarizeForTranscript(payload) {
+    if (!payload) return null;
+    if (typeof payload === "string") return payload.substring(0, 100);
+    if (payload.command) return { command: payload.command.substring(0, 50) };
+    if (payload.goal) return { goal: payload.goal.substring(0, 50) };
+    if (payload.query) return { query: payload.query.substring(0, 50) };
+    return { type: typeof payload };
   }
 
   // Pre-initialize agent stats for all expected agents to ensure tracking
@@ -145,9 +221,20 @@ class AgentTelemetry {
   }
 
   recordMessage(from, to, type, payload) {
-    this.messageFlow.push({ from, to, type, payload, timestamp: Date.now() });
+    const timestamp = Date.now();
+    this.messageFlow.push({ from, to, type, payload, timestamp });
     if (this.agentStats[from]) this.agentStats[from].messagesSent++;
     if (this.agentStats[to]) this.agentStats[to].messagesReceived++;
+
+    // Add to transcript
+    this.transcript.push({
+      timestamp,
+      isoTime: new Date(timestamp).toISOString(),
+      agent: `${from} → ${to}`,
+      type: `MESSAGE:${type}`,
+      details: { from, to, type, payload: this.summarizeForTranscript(payload) },
+      category: "COMMUNICATION",
+    });
   }
 
   recordContribution(agentId, contribution) {
@@ -206,6 +293,13 @@ class AgentTelemetry {
   generateReport() {
     const score = this.calculateCoordinationScore();
 
+    // Calculate relative timeline
+    const startTime = this.timeline.length > 0 ? this.timeline[0].timestamp : Date.now();
+    const relativeTimeline = this.timeline.map(e => ({
+      ...e,
+      relativeMs: e.timestamp - startTime,
+    }));
+
     return {
       summary: {
         totalEvents: this.events.length,
@@ -213,6 +307,14 @@ class AgentTelemetry {
         uniqueAgents: Object.keys(this.agentStats).length,
         coordinationScore: score.toFixed(1),
         evaluation: score >= 80 ? "EXCELLENT" : score >= 60 ? "GOOD" : score >= 40 ? "NEEDS_IMPROVEMENT" : "POOR",
+      },
+      transcript: this.transcript,
+      timeline: relativeTimeline,
+      metadata: {
+        testRunId: TEST_RUN_ID,
+        testTimestamp: TEST_TIMESTAMP,
+        transcriptLength: this.transcript.length,
+        timelineEvents: this.timeline.length,
       },
       agentStats: this.agentStats,
       messageFlow: this.messageFlow.slice(-50), // Last 50 messages
@@ -337,8 +439,20 @@ async function runTest() {
           message.type,
           message.payload
         );
+        // Record this as an activity for the sender
+        telemetry.recordAgentActivity(name, `send:${message.type}`, { recipient: message.recipient });
         return originalSend(message);
       };
+
+      // Hook into message receiving/processing
+      const originalProcessMessage = agent.processMessage?.bind(agent);
+      if (originalProcessMessage) {
+        agent.processMessage = function(message) {
+          telemetry.recordAgentActivity(name, `receive:${message.type}`, { sender: message.sender });
+          telemetry.recordEvent(name, "message.received", { type: message.type, sender: message.sender });
+          return originalProcessMessage(message);
+        };
+      }
 
       // Listen to all events
       agent.on("*", (eventName, data) => {
@@ -392,6 +506,12 @@ async function runTest() {
 
     // Record contributions based on message analysis
     telemetry.messageFlow.forEach(msg => {
+      // Record activity for both sender and recipient
+      telemetry.recordAgentActivity(msg.from, `sent:${msg.type}`, { to: msg.to });
+      if (msg.to !== "broadcast" && msg.to !== msg.from) {
+        telemetry.recordAgentActivity(msg.to, `received:${msg.type}`, { from: msg.from });
+      }
+
       if (msg.type === "task.complete" && msg.payload?.result) {
         telemetry.recordContribution(
           msg.from,
@@ -403,8 +523,19 @@ async function runTest() {
         telemetry.recordAgentActivity(msg.from, "plan_created", { planId: msg.payload?.planId });
       } else if (msg.type === "event.terminal") {
         telemetry.recordAgentActivity(msg.from, "terminal_event", { event: msg.payload?.event });
-      } else {
-        telemetry.recordEvent(msg.from, msg.type, msg.payload);
+      } else if (msg.type === "command.generate" || msg.type === "command.synthesize") {
+        telemetry.recordAgentActivity(msg.from, "command_generation", { command: msg.payload?.command });
+      } else if (msg.type === "knowledge.query" || msg.type === "knowledge.retrieve") {
+        telemetry.recordAgentActivity(msg.from, "knowledge_query", { query: msg.payload?.query });
+      } else if (msg.type === "verify.command" || msg.type === "verification.run") {
+        telemetry.recordAgentActivity(msg.from, "verification", { target: msg.payload?.command });
+      }
+    });
+
+    // Also analyze events to capture any agents that only emit events (not messages)
+    telemetry.events.forEach(event => {
+      if (event.agentId) {
+        telemetry.recordAgentActivity(event.agentId, `event:${event.eventType}`, event.payload);
       }
     });
 

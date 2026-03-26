@@ -14,7 +14,7 @@
 
 import { BaseAgent, AgentMessage, BaseAgentOptions } from "./BaseAgent";
 import { KnowledgeBase, Pattern } from "./KnowledgeBase";
-import type { AgentId, Message as BusAgentMessage } from "./MessageBus";
+import type { AgentId, AgentMessage as BusAgentMessage } from "./MessageBus";
 
 /**
  * Risk levels for command assessment
@@ -100,6 +100,9 @@ export interface VerificationAgentOptions extends BaseAgentOptions {
   /** KnowledgeBase instance for pattern lookups */
   knowledgeBase: KnowledgeBase;
 
+  /** Optional MessageBus for inter-agent communication */
+  messageBus?: import("./MessageBus").MessageBus;
+
   /** Whether to require confirmation for medium+ risk commands */
   requireConfirmationForMediumRisk?: boolean;
 
@@ -160,6 +163,7 @@ export class VerificationAgent extends BaseAgent {
   private knowledgeBase: KnowledgeBase;
   private requireConfirmationForMediumRisk: boolean;
   private riskPatterns: RiskPattern[];
+  private messageBus?: import("./MessageBus").MessageBus;
 
   /**
    * Default risk patterns for command analysis
@@ -297,6 +301,7 @@ export class VerificationAgent extends BaseAgent {
     super(options);
 
     this.knowledgeBase = options.knowledgeBase;
+    this.messageBus = options.messageBus;
     this.requireConfirmationForMediumRisk =
       options.requireConfirmationForMediumRisk ?? true;
     this.riskPatterns = [
@@ -406,6 +411,36 @@ export class VerificationAgent extends BaseAgent {
           payload: { riskLevel, command, tool },
           correlationId: message.correlationId,
         });
+        break;
+      }
+
+      case "task.assign": {
+        // Handle task assignment from planner - verify command if provided
+        const { taskType, payload } = message.payload as { taskType?: string; payload?: { command?: string; tool?: string } };
+        if (taskType === "verify" && payload?.command) {
+          const proposal: CommandProposal = {
+            command: payload.command,
+            tool: payload.tool || "unknown",
+            context: `Verification task assigned by ${message.sender}`,
+            proposedBy: message.sender,
+          };
+          const result = await this.verifyCommand(proposal);
+          this.sendMessage({
+            recipient: message.sender,
+            type: "task.complete",
+            payload: { taskId: (message.payload as { taskId?: string }).taskId, result },
+            priority: result.riskLevel === "critical" ? "critical" : "high",
+            correlationId: message.correlationId,
+          });
+        } else {
+          // Acknowledge task completion for unhandled task types
+          this.sendMessage({
+            recipient: message.sender,
+            type: "task.complete",
+            payload: { taskId: (message.payload as { taskId?: string }).taskId, result: { acknowledged: true } },
+            correlationId: message.correlationId,
+          });
+        }
         break;
       }
 
