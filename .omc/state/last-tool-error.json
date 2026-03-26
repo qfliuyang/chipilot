@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"npm run test:tier3 2>&1\",\"timeout\":120000,\"description\":\"Run all Tier 3 tests\"}",
-  "error": "Exit code 1\n\n> chipilot-cli@0.1.0 test:tier3\n> vitest run tests/tier3-integration --config vitest.tiered.config.ts\n\n\n RUN  v3.2.4 /Users/luzi/code/chipilot-cli/chipilot\n\n ❯ tests/tier3-integration/human-simulation.test.ts (14 tests | 6 failed) 2914ms\n   ✓ Human Simulation Tests > Realistic User Workflows > should handle typing then immediately switching panes 256ms\n   × Human Simulation Tests > Realistic User Workflows > should handle rapid tab switching 156ms\n     → expected false to be true //...",
-  "timestamp": "2026-03-25T01:17:00.822Z",
+  "tool_input_preview": "{\"command\":\"node test-interactive.mjs 2>&1\",\"timeout\":300000,\"description\":\"Run interactive test to verify agent orchestration\"}",
+  "error": "Exit code 1\n=== chipilot Interactive Test ===\n\nResults will be saved to: /Users/luzi/code/chipilot-cli/chipilot/tests/output/interactive-test-1774505486764\n\n--- Test 1: Direct Agent Chat Tests ---\n\n[Agent Test] Question: How do I run placement optimization in Innovus?\n  ✓ Response received (8413ms, 1144 chars)\n  ✓ Proposed command: optDesign -preCTS...\n[Agent Test] Question: What command checks setup timing violations?\n  ✓ Response received (2148ms, 780 chars)\n  ✓ Proposed command: timeDesign -r...",
+  "timestamp": "2026-03-26T06:11:43.957Z",
   "retry_count": 1
 }

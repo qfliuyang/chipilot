@@ -1,0 +1,91 @@
+{
+  "startTime": "2026-03-26T06:47:02.944Z",
+  "agentTests": [
+    {
+      "question": "How do I run placement optimization in Innovus?",
+      "duration": 0,
+      "timestamp": "2026-03-26T06:47:02.945Z",
+      "response": "Anthropic client not initialized. Please set CHIPILOT_ANTHROPIC_API_KEY environment variable.",
+      "proposedCommand": null,
+      "hasProposedCommand": false,
+      "responseLength": 93
+    },
+    {
+      "question": "What command checks setup timing violations?",
+      "duration": 0,
+      "timestamp": "2026-03-26T06:47:03.947Z",
+      "response": "Anthropic client not initialized. Please set CHIPILOT_ANTHROPIC_API_KEY environment variable.",
+      "proposedCommand": null,
+      "hasProposedCommand": false,
+      "responseLength": 93
+    },
+    {
+      "question": "How do I generate a timing report in Tempus?",
+      "duration": 0,
+      "timestamp": "2026-03-26T06:47:04.948Z",
+      "response": "Anthropic client not initialized. Please set CHIPILOT_ANTHROPIC_API_KEY environment variable.",
+      "proposedCommand": null,
+      "hasProposedCommand": false,
+      "responseLength": 93
+    }
+  ],
+  "orchestratorTests": [
+    {
+      "goal": "What's the best practice for floorplanning a 28nm design?",
+      "duration": 3,
+      "timestamp": "2026-03-26T06:47:05.954Z",
+      "success": true,
+      "message": "Successfully completed: Technical query: What's the best practice for floorplanning a 28nm design?",
+      "error": null,
+      "hasError": false
+    },
+    {
+      "goal": "How do I fix hold time violations after CTS?",
+      "duration": 2,
+      "timestamp": "2026-03-26T06:47:06.457Z",
+      "success": true,
+      "message": "Successfully completed: Debug/Fix: How do I fix hold time violations after CTS?",
+      "error": null,
+      "hasError": false
+    },
+    {
+      "goal": "What commands do I use to analyze congestion?",
+      "duration": 1,
+      "timestamp": "2026-03-26T06:47:06.959Z",
+      "success": true,
+      "message": "Successfully completed: Technical query: What commands do I use to analyze congestion?",
+      "error": null,
+      "hasError": false
+    }
+  ],
+  "summary": {
+    "agentTests": {
+      "total": 3,
+      "successful": 3,
+      "failed": 0,
+      "avgResponseTime": 0,
+      "commandsProposed": 0
+    },
+    "orchestratorTests": {
+      "total": 3,
+      "successful": 3,
+      "failed": 0,
+      "avgProcessingTime": 2
+    },
+    "agentEvents": {
+      "stateChanges": 0,
+      "messagesDelivered": 24,
+      "plansStarted": 3,
+      "plansCompleted": 3
+    }
+  },
+  "evaluation": {
+    "agentQuality": "WARNING",
+    "orchestratorQuality": "PASS",
+    "overall": "WARNING",
+    "issues": [
+      "No commands were proposed by agents"
+    ]
+  },
+  "endTime": "2026-03-26T06:47:07.461Z"
+}

@@ -635,22 +635,88 @@ export class CommandSynthesisAgent extends BaseAgent {
     const intentLower = intent.toLowerCase();
 
     // Map common intents to basic command structures
+    if (intentLower.includes("place") && intentLower.includes("opt")) {
+      return tool === "innovus" ? "place_opt_design" : "place_design";
+    }
     if (intentLower.includes("place")) {
-      return `${tool === "innovus" ? "place_opt_design" : "place_design"}`;
+      return tool === "innovus" ? "placeDesign" : "place_design";
     }
     if (intentLower.includes("route")) {
-      return `${tool === "innovus" ? "route_design" : "route_design"}`;
+      return tool === "innovus" ? "routeDesign" : "route_design";
+    }
+    if (
+      intentLower.includes("timing") ||
+      intentLower.includes("setup") ||
+      intentLower.includes("hold")
+    ) {
+      return "report_timing";
+    }
+    if (intentLower.includes("congestion")) {
+      return "report_congestion";
+    }
+    if (intentLower.includes("clock") || intentLower.includes("cts")) {
+      return tool === "innovus" ? "ccopt_design" : "clock_opt_design";
+    }
+    if (intentLower.includes("floorplan")) {
+      return "floorPlan -site coreSite -s 100 100 10 10 10 10";
+    }
+    if (intentLower.includes("power") || intentLower.includes("ir")) {
+      return "verify_power";
+    }
+    if (intentLower.includes("drc")) {
+      return "verify_drc";
+    }
+    if (intentLower.includes("abstract")) {
+      return "generate_abstract";
+    }
+    if (intentLower.includes("lvs")) {
+      return "verify_lvs";
+    }
+    if (intentLower.includes("eco")) {
+      return "ecoPlace";
+    }
+    if (intentLower.includes("scan")) {
+      return "insert_scan_chains";
+    }
+    if (intentLower.includes("clock gating")) {
+      return "clock_gating -insert";
     }
     if (intentLower.includes("report")) {
       const reportType = intentLower.includes("timing") ? "timing" : "constraints";
       return `report_${reportType}`;
     }
     if (intentLower.includes("set") || intentLower.includes("configure")) {
-      return `set <option> <value>`;
+      return "set <option> <value>";
     }
 
-    // Generic fallback
-    return `# TODO: Implement command for: ${intent}`;
+    // Try to extract command-like words from intent
+    const commandWords = intentLower.match(/\b([a-z]+[a-z0-9_]*(?:_[a-z]+[a-z0-9_]*)*)\b/g);
+    if (commandWords && commandWords.length > 0) {
+      // Filter out common words and join remaining as potential command
+      const commonWords = new Set([
+        "the",
+        "and",
+        "for",
+        "with",
+        "run",
+        "do",
+        "to",
+        "a",
+        "an",
+        "in",
+        "on",
+        "at",
+        "by",
+        "of",
+      ]);
+      const candidateWords = commandWords.filter((w) => !commonWords.has(w));
+      if (candidateWords.length > 0) {
+        return candidateWords.join("_");
+      }
+    }
+
+    // Generic fallback with helpful echo message
+    return `echo "Command not recognized for intent: ${intent.replace(/"/g, '\\"')}"`;
   }
 
   /**

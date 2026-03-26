@@ -429,31 +429,20 @@ export class KnowledgeCuratorAgent extends BaseAgent {
       return;
     }
 
-    // Skip seeding if persistent storage is not available
-    // (Knowledge will be stored in-memory only via reflective tier)
-    if (!this.knowledgeBase.isPersistentAvailable()) {
-      console.log("[KnowledgeCuratorAgent] Persistent storage not available. Skipping initial seeding - knowledge will be learned dynamically.");
-      this.isSeeded = true;
-      return;
-    }
-
     console.log("[KnowledgeCuratorAgent] Seeding initial EDA knowledge...");
 
     try {
-      // Seed Innovus commands
-      await this.seedInnovusCommands();
+      // Always seed reflective tier (works without Pinecone)
+      await this.seedReflectiveKnowledge();
 
-      // Seed Genus commands
-      await this.seedGenusCommands();
-
-      // Seed Tempus commands
-      await this.seedTempusCommands();
-
-      // Seed error patterns
-      await this.seedErrorPatterns();
-
-      // Seed workflows
-      await this.seedWorkflows();
+      // Seed persistent tier only if Pinecone is available
+      if (this.knowledgeBase.isPersistentAvailable()) {
+        await this.seedPersistentKnowledge();
+      } else {
+        console.log(
+          "[KnowledgeCuratorAgent] Persistent storage not available. Reflective knowledge seeded."
+        );
+      }
 
       this.isSeeded = true;
       console.log("[KnowledgeCuratorAgent] Initial knowledge seeding complete");
@@ -461,6 +450,145 @@ export class KnowledgeCuratorAgent extends BaseAgent {
       console.error("[KnowledgeCuratorAgent] Error seeding knowledge:", error);
       throw error;
     }
+  }
+
+  /**
+   * Seed reflective tier with basic EDA command patterns.
+   * This works without Pinecone and provides immediate command recognition.
+   */
+  private async seedReflectiveKnowledge(): Promise<void> {
+    const patterns: Array<{
+      id: string;
+      signature: string;
+      description: string;
+      context: string;
+    }> = [
+      // Innovus patterns
+      {
+        id: "pattern-innovus-placeDesign",
+        signature: "placeDesign",
+        description: "Run standard cell placement optimization in Innovus",
+        context: "innovus",
+      },
+      {
+        id: "pattern-innovus-place_opt_design",
+        signature: "place_opt_design",
+        description: "Placement optimization with timing and congestion in Innovus",
+        context: "innovus",
+      },
+      {
+        id: "pattern-innovus-routeDesign",
+        signature: "routeDesign",
+        description: "Run global and detailed routing in Innovus",
+        context: "innovus",
+      },
+      {
+        id: "pattern-innovus-report_timing",
+        signature: "report_timing",
+        description: "Generate timing analysis report in Innovus",
+        context: "innovus",
+      },
+      {
+        id: "pattern-innovus-report_congestion",
+        signature: "report_congestion",
+        description: "Report routing congestion analysis in Innovus",
+        context: "innovus",
+      },
+      {
+        id: "pattern-innovus-ccopt_design",
+        signature: "ccopt_design",
+        description: "Run clock tree synthesis and optimization in Innovus",
+        context: "innovus",
+      },
+
+      // Genus patterns
+      {
+        id: "pattern-genus-syn_map",
+        signature: "syn_map",
+        description: "Map generic gates to technology library in Genus",
+        context: "genus",
+      },
+      {
+        id: "pattern-genus-syn_opt",
+        signature: "syn_opt",
+        description: "Optimize mapped design for timing and area in Genus",
+        context: "genus",
+      },
+
+      // Tempus patterns
+      {
+        id: "pattern-tempus-report_timing",
+        signature: "report_timing",
+        description: "Generate setup timing report in Tempus",
+        context: "tempus",
+      },
+      {
+        id: "pattern-tempus-report_constraint",
+        signature: "report_constraint",
+        description: "Report constraint coverage and violations in Tempus",
+        context: "tempus",
+      },
+
+      // General patterns
+      {
+        id: "pattern-general-floorplan",
+        signature: "floorplan",
+        description: "Initialize or modify design floorplan",
+        context: "general",
+      },
+      {
+        id: "pattern-general-power_analysis",
+        signature: "power analysis",
+        description: "Analyze power consumption and distribution",
+        context: "general",
+      },
+      {
+        id: "pattern-general-drc_verification",
+        signature: "DRC verification",
+        description: "Verify design rule compliance",
+        context: "general",
+      },
+    ];
+
+    for (const p of patterns) {
+      const pattern: Pattern = {
+        id: p.id,
+        type: "command_sequence",
+        signature: p.signature,
+        description: p.description,
+        context: p.context,
+        confidence: 0.95,
+        usageCount: 100,
+        createdAt: new Date(),
+        lastUsedAt: new Date(),
+      };
+
+      await this.knowledgeBase.storeReflective(pattern);
+    }
+
+    console.log(
+      `[KnowledgeCuratorAgent] Seeded ${patterns.length} reflective patterns`
+    );
+  }
+
+  /**
+   * Seed persistent tier with full EDA knowledge (requires Pinecone).
+   */
+  private async seedPersistentKnowledge(): Promise<void> {
+    // Seed Innovus commands
+    await this.seedInnovusCommands();
+
+    // Seed Genus commands
+    await this.seedGenusCommands();
+
+    // Seed Tempus commands
+    await this.seedTempusCommands();
+
+    // Seed error patterns
+    await this.seedErrorPatterns();
+
+    // Seed workflows
+    await this.seedWorkflows();
   }
 
   /**

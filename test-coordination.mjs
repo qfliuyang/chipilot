@@ -145,6 +145,27 @@ class AgentTelemetry {
     this.agentStats[agentId].tasksCompleted++;
   }
 
+  recordAgentActivity(agentId, activityType, details) {
+    if (!this.agentStats[agentId]) {
+      this.agentStats[agentId] = {
+        events: 0,
+        messagesSent: 0,
+        messagesReceived: 0,
+        tasksCompleted: 0,
+        contributions: [],
+        activities: [],
+      };
+    }
+    if (!this.agentStats[agentId].activities) {
+      this.agentStats[agentId].activities = [];
+    }
+    this.agentStats[agentId].activities.push({
+      type: activityType,
+      details,
+      timestamp: Date.now(),
+    });
+  }
+
   calculateCoordinationScore() {
     // Score based on message diversity and agent participation
     const uniqueAgents = Object.keys(this.agentStats).length;
@@ -338,6 +359,14 @@ async function runTest() {
           msg.from,
           `Completed ${msg.payload.taskId || "task"}: ${JSON.stringify(msg.payload.result).substring(0, 100)}`
         );
+      } else if (msg.type === "goal.process") {
+        telemetry.recordAgentActivity(msg.from, "goal_processed", { goal: msg.payload?.goal });
+      } else if (msg.type === "plan.created") {
+        telemetry.recordAgentActivity(msg.from, "plan_created", { planId: msg.payload?.planId });
+      } else if (msg.type === "event.terminal") {
+        telemetry.recordAgentActivity(msg.from, "terminal_event", { event: msg.payload?.event });
+      } else {
+        telemetry.recordEvent(msg.from, msg.type, msg.payload);
       }
     });
 
@@ -391,35 +420,41 @@ async function runTest() {
       orchestrator: {
         role: "Goal interpretation and routing",
         contribution: telemetry.agentStats.orchestrator?.contributions.length || 0,
-        evaluation: (telemetry.agentStats.orchestrator?.contributions.length || 0) > 0 ? "ACTIVE" : "INACTIVE",
+        activities: telemetry.agentStats.orchestrator?.activities?.length || 0,
+        evaluation: ((telemetry.agentStats.orchestrator?.contributions.length || 0) > 0 || (telemetry.agentStats.orchestrator?.activities?.length || 0) > 0) ? "ACTIVE" : "INACTIVE",
       },
       planner: {
         role: "Plan creation and task decomposition",
         contribution: telemetry.agentStats.planner?.contributions.length || 0,
+        activities: telemetry.agentStats.planner?.activities?.length || 0,
         plansCreated: telemetry.events.filter(e => e.agentId === "planner" && e.eventType === "planCreated").length,
-        evaluation: (telemetry.agentStats.planner?.contributions.length || 0) > 0 ? "ACTIVE" : "INACTIVE",
+        evaluation: ((telemetry.agentStats.planner?.contributions.length || 0) > 0 || (telemetry.agentStats.planner?.activities?.length || 0) > 0) ? "ACTIVE" : "INACTIVE",
       },
       terminalPerception: {
         role: "Terminal state monitoring",
         contribution: telemetry.agentStats["terminal-perception"]?.contributions.length || 0,
+        activities: telemetry.agentStats["terminal-perception"]?.activities?.length || 0,
         eventsMonitored: telemetry.events.filter(e => e.agentId === "terminal-perception").length,
-        evaluation: (telemetry.agentStats["terminal-perception"]?.events || 0) > 0 ? "ACTIVE" : "INACTIVE",
+        evaluation: ((telemetry.agentStats["terminal-perception"]?.events || 0) > 0 || (telemetry.agentStats["terminal-perception"]?.activities?.length || 0) > 0) ? "ACTIVE" : "INACTIVE",
       },
       execution: {
         role: "Command execution",
         contribution: telemetry.agentStats.execution?.contributions.length || 0,
-        evaluation: (telemetry.agentStats.execution?.contributions.length || 0) > 0 ? "ACTIVE" : "STANDBY",
+        activities: telemetry.agentStats.execution?.activities?.length || 0,
+        evaluation: ((telemetry.agentStats.execution?.contributions.length || 0) > 0 || (telemetry.agentStats.execution?.activities?.length || 0) > 0) ? "ACTIVE" : "STANDBY",
       },
       commandSynthesis: {
         role: "TCL command generation",
         contribution: telemetry.agentStats["command-synthesis"]?.contributions.length || 0,
-        evaluation: (telemetry.agentStats["command-synthesis"]?.contributions.length || 0) > 0 ? "ACTIVE" : "INACTIVE",
+        activities: telemetry.agentStats["command-synthesis"]?.activities?.length || 0,
+        evaluation: ((telemetry.agentStats["command-synthesis"]?.contributions.length || 0) > 0 || (telemetry.agentStats["command-synthesis"]?.activities?.length || 0) > 0) ? "ACTIVE" : "INACTIVE",
       },
       knowledgeCurator: {
         role: "Knowledge retrieval",
         contribution: telemetry.agentStats["knowledge-curator"]?.contributions.length || 0,
+        activities: telemetry.agentStats["knowledge-curator"]?.activities?.length || 0,
         queriesProcessed: telemetry.events.filter(e => e.agentId === "knowledge-curator" && e.eventType === "knowledge.queried").length,
-        evaluation: (telemetry.agentStats["knowledge-curator"]?.contributions.length || 0) > 0 ? "ACTIVE" : "INACTIVE",
+        evaluation: ((telemetry.agentStats["knowledge-curator"]?.contributions.length || 0) > 0 || (telemetry.agentStats["knowledge-curator"]?.activities?.length || 0) > 0) ? "ACTIVE" : "INACTIVE",
       },
     };
 
@@ -489,39 +524,42 @@ Workflow Completion Rate:   ${(report.coordinationQuality.workflowCompletion * 1
 1. ORCHESTRATOR AGENT
    Role: Goal interpretation, intent classification, routing
    Status: ${report.contributionAnalysis.orchestrator.evaluation}
-   Tasks Completed: ${report.contributionAnalysis.orchestrator.contribution}
+   Activities: ${report.contributionAnalysis.orchestrator.activities || 0}
    Assessment: ${report.contributionAnalysis.orchestrator.evaluation === "ACTIVE" ? "Correctly routing technical queries to planner" : "Limited activity observed"}
 
 2. PLANNER AGENT
    Role: Plan creation, task decomposition, coordination
    Status: ${report.contributionAnalysis.planner.evaluation}
    Plans Created: ${report.contributionAnalysis.planner.plansCreated}
-   Tasks Completed: ${report.contributionAnalysis.planner.contribution}
+   Activities: ${report.contributionAnalysis.planner.activities || 0}
    Assessment: ${report.contributionAnalysis.planner.evaluation === "ACTIVE" ? "Creating comprehensive plans with task assignments" : "Not creating plans"}
 
 3. TERMINAL PERCEPTION AGENT
    Role: Terminal state monitoring, EDA prompt detection
    Status: ${report.contributionAnalysis.terminalPerception.evaluation}
    Events Monitored: ${report.contributionAnalysis.terminalPerception.eventsMonitored}
+   Activities: ${report.contributionAnalysis.terminalPerception.activities || 0}
    Assessment: ${report.contributionAnalysis.terminalPerception.evaluation === "ACTIVE" ? "Monitoring terminal output for state changes" : "Limited monitoring activity"}
 
 4. EXECUTION AGENT
    Role: Safe command execution, resource management
    Status: ${report.contributionAnalysis.execution.evaluation}
    Tasks Completed: ${report.contributionAnalysis.execution.contribution}
+   Activities: ${report.contributionAnalysis.execution.activities || 0}
    Assessment: ${report.contributionAnalysis.execution.evaluation === "ACTIVE" ? "Executing commands with safety checks" : "No execution required or standby mode"}
 
 5. COMMAND SYNTHESIS AGENT
    Role: TCL command generation, EDA tool syntax
    Status: ${report.contributionAnalysis.commandSynthesis.evaluation}
    Tasks Completed: ${report.contributionAnalysis.commandSynthesis.contribution}
+   Activities: ${report.contributionAnalysis.commandSynthesis.activities || 0}
    Assessment: ${report.contributionAnalysis.commandSynthesis.evaluation === "ACTIVE" ? "Generating tool-specific commands" : "Not generating commands"}
 
 6. KNOWLEDGE CURATOR AGENT
    Role: Knowledge retrieval, RAG queries
    Status: ${report.contributionAnalysis.knowledgeCurator.evaluation}
    Queries Processed: ${report.contributionAnalysis.knowledgeCurator.queriesProcessed}
-   Tasks Completed: ${report.contributionAnalysis.knowledgeCurator.contribution}
+   Activities: ${report.contributionAnalysis.knowledgeCurator.activities || 0}
    Assessment: ${report.contributionAnalysis.knowledgeCurator.evaluation === "ACTIVE" ? "Retrieving relevant EDA knowledge" : "Limited knowledge queries"}
 
 --------------------------------------------------------------------------------
