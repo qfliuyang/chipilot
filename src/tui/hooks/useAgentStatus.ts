@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { MessageBus, AgentMessage, AgentId } from "../../agents/MessageBus";
 import { AgentState } from "../../agents/BaseAgent";
+import { PlanStatus } from "../../agents/PlannerAgent";
 
 /**
  * Status information for a single agent

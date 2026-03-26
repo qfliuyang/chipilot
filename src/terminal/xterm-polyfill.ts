@@ -1,4 +1,4 @@
-// Polyfill for xterm-headless which references `window` without checking
+// Polyfill for xterm-headless and xterm-addon-serialize which reference browser globals
 // This must be imported before any xterm packages
 
 if (typeof globalThis.window === "undefined") {
@@ -9,7 +9,51 @@ if (typeof globalThis.window === "undefined") {
 if (typeof globalThis.document === "undefined") {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (globalThis as any).document = {
-    createElement: () => ({}),
+    createElement: (tagName: string) => {
+      if (tagName === "canvas") {
+        // Return a canvas mock with getContext for xterm-addon-serialize
+        return {
+          getContext: () => ({
+            fillRect: () => {},
+            clearRect: () => {},
+            getImageData: () => ({ data: [] }),
+            putImageData: () => {},
+            createImageData: () => ({ data: [] }),
+            setTransform: () => {},
+            drawImage: () => {},
+            save: () => {},
+            fillText: () => {},
+            restore: () => {},
+            beginPath: () => {},
+            moveTo: () => {},
+            lineTo: () => {},
+            closePath: () => {},
+            stroke: () => {},
+            translate: () => {},
+            scale: () => {},
+            rotate: () => {},
+            arc: () => {},
+            fill: () => {},
+            measureText: () => ({ width: 0 }),
+            transform: () => {},
+            rect: () => {},
+            clip: () => {},
+            createLinearGradient: () => ({
+              addColorStop: () => {},
+            }),
+            createRadialGradient: () => ({
+              addColorStop: () => {},
+            }),
+            createPattern: () => ({}),
+            globalCompositeOperation: "source-over",
+          }),
+          width: 0,
+          height: 0,
+          style: {},
+        };
+      }
+      return {};
+    },
     getElementById: () => null,
     querySelector: () => null,
     querySelectorAll: () => [],

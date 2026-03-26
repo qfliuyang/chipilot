@@ -661,7 +661,6 @@ export class TerminalPerceptionAgent extends BaseAgent {
     const timestamp = new Date().toISOString();
     const prefix = `[TerminalPerception:${level.toUpperCase()}] ${timestamp}`;
 
-     
     console.log(prefix, ...args);
   }
 }

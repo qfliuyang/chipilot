@@ -1344,10 +1344,8 @@ export class RecoveryAgent extends BaseAgent {
     const prefix = `[RecoveryAgent:${this.id}:${level.toUpperCase()}] ${timestamp}`;
 
     if (level === "debug") {
-       
       if (process.env.DEBUG) console.log(prefix, message, meta ?? "");
     } else {
-       
       console.log(prefix, message, meta ?? "");
     }
   }
