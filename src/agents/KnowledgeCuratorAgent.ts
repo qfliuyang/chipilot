@@ -313,7 +313,15 @@ export class KnowledgeCuratorAgent extends BaseAgent {
 
         try {
           if (taskPayload.taskType === "query_knowledge") {
-            const { query, context } = taskPayload.payload;
+            // Extract query from payload or fall back to description
+            let query = taskPayload.payload?.query;
+            const context = taskPayload.payload?.context;
+
+            // If no query in payload, use the task description as the query
+            if (!query && taskPayload.description) {
+              query = taskPayload.description;
+            }
+
             if (query) {
               const result = await this.knowledgeBase.retrieveAndGenerate(query, context);
               this.sendMessage({
@@ -331,16 +339,17 @@ export class KnowledgeCuratorAgent extends BaseAgent {
             }
           }
 
-          // For other task types or missing data, acknowledge completion
+          // For other task types, report failure since KnowledgeCurator only handles query_knowledge tasks
           this.sendMessage({
             recipient: message.sender,
-            type: "task.complete",
+            type: "task.failed",
             payload: {
               taskId: taskPayload.taskId,
               planId: taskPayload.planId,
-              result: { acknowledged: true },
+              error: `KnowledgeCuratorAgent cannot handle task type: ${taskPayload.taskType}. Only "query_knowledge" tasks are supported.`,
             },
             correlationId: message.correlationId,
+            priority: "normal",
           });
         } catch (error) {
           this.sendMessage({
@@ -558,7 +567,7 @@ export class KnowledgeCuratorAgent extends BaseAgent {
         description: p.description,
         context: p.context,
         confidence: 0.95,
-        usageCount: 100,
+        usageCount: 0, // Start at 0 - no fake statistics
         createdAt: new Date(),
         lastUsedAt: new Date(),
       };
@@ -567,7 +576,7 @@ export class KnowledgeCuratorAgent extends BaseAgent {
     }
 
     console.log(
-      `[KnowledgeCuratorAgent] Seeded ${patterns.length} reflective patterns`
+      `[KnowledgeCuratorAgent] Seeded ${patterns.length} reflective patterns (usageCount: 0)`
     );
   }
 
@@ -749,6 +758,9 @@ export class KnowledgeCuratorAgent extends BaseAgent {
   /**
    * Analyze the knowledge base for gaps and missing information.
    *
+   * Uses LLM to perform sophisticated analysis of knowledge gaps beyond
+   * simple pattern counting.
+   *
    * @returns Array of identified knowledge gaps
    */
   async analyzeKnowledgeGaps(): Promise<KnowledgeGap[]> {
@@ -791,7 +803,87 @@ export class KnowledgeCuratorAgent extends BaseAgent {
       });
     }
 
+    // Use LLM for deeper gap analysis
+    const llmGaps = await this.analyzeGapsWithLLM(gaps, kbStats);
+    gaps.push(...llmGaps);
+
     return gaps;
+  }
+
+  /**
+   * Use LLM to analyze knowledge gaps more deeply.
+   *
+   * Provides sophisticated analysis of what's missing in the knowledge base
+   * based on EDA tool domain expertise.
+   *
+   * @param existingGaps - Gaps already identified by heuristic analysis
+   * @param kbStats - Knowledge base statistics
+   * @returns Additional gaps identified by LLM
+   */
+  private async analyzeGapsWithLLM(
+    existingGaps: KnowledgeGap[],
+    kbStats: { reflectiveCount: number; persistentAvailable: boolean }
+  ): Promise<KnowledgeGap[]> {
+    const prompt = `Analyze this EDA tool knowledge base for gaps:
+
+Current State:
+- Reflective patterns: ${kbStats.reflectiveCount}
+- Persistent storage: ${kbStats.persistentAvailable ? "available" : "unavailable"}
+
+Already identified gaps:
+${existingGaps.map((g) => `- ${g.type}: ${g.description}`).join("\n")}
+
+Consider these EDA tool categories:
+1. Physical design (Innovus): floorplan, placement, CTS, routing, optimization
+2. Synthesis (Genus): elaboration, constraints, mapping, optimization
+3. Timing analysis (Tempus): setup/hold checks, ECO, signoff
+4. Common workflows: PnR flow, synthesis flow, signoff flow
+5. Error patterns: timing violations, DRC errors, congestion, power issues
+
+Identify 2-3 additional knowledge gaps that would be high-value to fill.
+
+Format your response as JSON:
+{
+  "gaps": [
+    {
+      "type": "command|error_pattern|workflow|tool_coverage",
+      "tool": "specific tool or null",
+      "description": "detailed description of the gap",
+      "priority": "low|medium|high|critical",
+      "suggestedAction": "how to fill this gap"
+    }
+  ]
+}`;
+
+    try {
+      const response = await this.processWithLLM(prompt);
+
+      // Parse JSON response
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const analysis = JSON.parse(jsonMatch[0]);
+
+        if (Array.isArray(analysis.gaps)) {
+          return analysis.gaps.map((g: unknown) => ({
+            type: (g as { type: string }).type || "workflow",
+            tool: (g as { tool?: string }).tool,
+            description: (g as { description: string }).description || "Unknown gap",
+            priority: ((g as { priority: string }).priority || "low") as
+              | "low"
+              | "medium"
+              | "high"
+              | "critical",
+            suggestedAction:
+              (g as { suggestedAction: string }).suggestedAction || "Manual investigation needed",
+          }));
+        }
+      }
+    } catch (error) {
+      console.warn("[KnowledgeCuratorAgent] LLM gap analysis failed:", error);
+    }
+
+    // Return empty on failure
+    return [];
   }
 
   /**
