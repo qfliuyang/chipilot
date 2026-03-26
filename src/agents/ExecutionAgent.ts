@@ -11,7 +11,7 @@
 
 import { BaseAgent, AgentMessage, BaseAgentOptions } from "./BaseAgent";
 import { TerminalSession } from "../terminal/session";
-import { AgentId, MessagePriority } from "./MessageBus";
+import { AgentId, MessagePriority, MessageBus, AgentMessage as BusAgentMessage } from "./MessageBus";
 
 /**
  * Options for command execution
@@ -116,14 +116,16 @@ export class ExecutionAgent extends BaseAgent {
   private checkpoints: Map<string, ExecutionCheckpoint> = new Map();
   private executionHistory: ExecutionResult[] = [];
   private maxHistorySize: number = 100;
+  private messageBus?: MessageBus;
 
   // Event handlers bound for cleanup
   private boundOnOutput: (data: string) => void;
   private boundOnExit: (data: { exitCode: number; signal?: number }) => void;
 
-  constructor(options: BaseAgentOptions) {
+  constructor(options: BaseAgentOptions & { messageBus?: MessageBus }) {
     super(options);
 
+    this.messageBus = options.messageBus;
     this.terminalState = {
       isReady: false,
       isExecuting: false,
@@ -405,6 +407,47 @@ export class ExecutionAgent extends BaseAgent {
   }
 
   /**
+   * Lifecycle hook called during initialization.
+   */
+  protected async onInitialize(): Promise<void> {
+    // Register with MessageBus if available
+    if (this.messageBus) {
+      this.messageBus.registerAgent("execution" as AgentId, async (message) => {
+        // Convert MessageBus format to BaseAgent format
+        const convertedMessage: AgentMessage = {
+          id: message.id,
+          type: message.type,
+          sender: message.from,
+          recipient: message.to === "broadcast" ? "broadcast" : message.to,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority,
+          correlationId: message.correlationId,
+        };
+        await this.receiveMessage(convertedMessage);
+      });
+
+      // Set up event forwarding from BaseAgent to MessageBus
+      this.on("sendMessage", (message: AgentMessage) => {
+        // Convert BaseAgent format to MessageBus format
+        const busMessage: BusAgentMessage = {
+          id: message.id,
+          from: message.sender as AgentId,
+          to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
+          type: message.type as import("./MessageBus").MessageType,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority ?? "normal",
+          correlationId: message.correlationId,
+        };
+        this.messageBus!.send(busMessage).catch((err) => {
+          console.error("[ExecutionAgent] Failed to send message via MessageBus:", err);
+        });
+      });
+    }
+  }
+
+  /**
    * Lifecycle hook called during cleanup.
    */
   protected async onCleanup(): Promise<void> {
@@ -605,39 +648,82 @@ export class ExecutionAgent extends BaseAgent {
 
   private async handleTaskAssign(message: AgentMessage): Promise<void> {
     const payload = message.payload as {
-      task: string;
-      command?: string;
-      options?: ExecutionOptions;
+      taskId: string;
+      planId: string;
+      taskType: string;
+      description: string;
+      payload: {
+        command?: string;
+        tool?: string;
+      };
     };
 
-    if (payload.task === "execute" && payload.command) {
-      try {
-        const result = await this.execute(payload.command, payload.options);
+    // For execute tasks, we need a command to run
+    if (payload.taskType === "execute") {
+      const command = payload.payload?.command;
 
-        // Send completion message
+      // If no command provided, respond with success (nothing to execute)
+      if (!command) {
         this.sendMessage({
           recipient: message.sender as AgentId,
           type: "task.complete",
           payload: {
-            taskId: message.id,
+            taskId: payload.taskId,
+            planId: payload.planId,
+            result: {
+              command: "",
+              output: "No command to execute",
+              duration: 0,
+              success: true,
+              timestamp: Date.now(),
+            },
+          },
+          priority: "normal",
+          correlationId: message.correlationId,
+        });
+        return;
+      }
+
+      try {
+        const result = await this.execute(command, { waitForCompletion: false });
+
+        this.sendMessage({
+          recipient: message.sender as AgentId,
+          type: "task.complete",
+          payload: {
+            taskId: payload.taskId,
+            planId: payload.planId,
             result,
           },
           priority: "normal",
           correlationId: message.correlationId,
         });
       } catch (error) {
-        // Send failure message
         this.sendMessage({
           recipient: message.sender as AgentId,
           type: "task.failed",
           payload: {
-            taskId: message.id,
+            taskId: payload.taskId,
+            planId: payload.planId,
             error: error instanceof Error ? error.message : String(error),
           },
           priority: "high",
           correlationId: message.correlationId,
         });
       }
+    } else {
+      // Not an execute task, acknowledge but do nothing
+      this.sendMessage({
+        recipient: message.sender as AgentId,
+        type: "task.complete",
+        payload: {
+          taskId: payload.taskId,
+          planId: payload.planId,
+          result: { acknowledged: true },
+        },
+        priority: "normal",
+        correlationId: message.correlationId,
+      });
     }
   }
 

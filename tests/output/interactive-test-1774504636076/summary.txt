@@ -1,0 +1,62 @@
+chipilot Interactive Test Results
+==================================
+
+Date: 2026-03-26T05:57:16.076Z
+Duration: 118446ms
+
+AGENT TESTS
+-----------
+Total Questions: 3
+Successful: 3
+Failed: 0
+Avg Response Time: 7973ms
+Commands Proposed: 3
+
+Questions Asked:
+1. How do I run placement optimization in Innovus?
+   Response: To run placement optimization in Cadence Innovus, you typically use the `optDesign` command. This performs global placement, legalization, and increme...
+
+2. What command checks setup timing violations?
+   Response: To check Setup (max delay) timing violations in Innovus, the standard command is `timeDesign`.
+
+The command specifically for checking setup time *afte...
+
+3. How do I generate a timing report in Tempus?
+   Response: In Cadence Tempus, you generate timing reports primarily using the `report_timing` command. This gives you detailed path-by-path analysis.
+
+**The most...
+
+ORCHESTRATOR TESTS
+------------------
+Total Goals: 3
+Successful: 0
+Failed: 3
+Avg Processing Time: 30004ms
+
+Goals Processed:
+1. What's the best practice for floorplanning a 28nm design?
+   Result: FAILED
+   Response: Failed to complete: Technical query: What's the best practice for floorplanning a 28nm design?...
+
+2. How do I fix hold time violations after CTS?
+   Result: FAILED
+   Response: Failed to complete: Debug/Fix: How do I fix hold time violations after CTS?...
+
+3. What commands do I use to analyze congestion?
+   Result: FAILED
+   Response: Failed to complete: Technical query: What commands do I use to analyze congestion?...
+
+AGENT EVENTS
+------------
+State Changes: 0
+Messages Delivered: 12
+Plans Started: 0
+Plans Completed: 0
+
+EVALUATION
+----------
+Overall: FAIL
+Agent Quality: PASS
+Orchestrator Quality: FAIL
+
+Issues: Orchestrator had 3 errors, No plans were started by orchestrator

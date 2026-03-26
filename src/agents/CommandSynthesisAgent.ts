@@ -10,6 +10,7 @@
  */
 
 import { BaseAgent, AgentMessage, BaseAgentOptions } from "./BaseAgent";
+import { MessageBus, AgentId, AgentMessage as BusAgentMessage } from "./MessageBus";
 import { KnowledgeBase, CommandMetadata, VectorIndices } from "./KnowledgeBase";
 
 /**
@@ -93,6 +94,9 @@ export interface CommandSynthesisOptions extends BaseAgentOptions {
   /** KnowledgeBase instance for RAG queries */
   knowledgeBase: KnowledgeBase;
 
+  /** MessageBus instance for inter-agent communication */
+  messageBus?: MessageBus;
+
   /** Confidence threshold for requiring verification (default: 0.7) */
   verificationThreshold?: number;
 
@@ -125,6 +129,7 @@ export interface CommandSynthesisOptions extends BaseAgentOptions {
  */
 export class CommandSynthesisAgent extends BaseAgent {
   private knowledgeBase: KnowledgeBase;
+  private messageBus?: MessageBus;
   private verificationThreshold: number;
   private maxAlternatives: number;
 
@@ -176,6 +181,7 @@ export class CommandSynthesisAgent extends BaseAgent {
     }
 
     this.knowledgeBase = options.knowledgeBase;
+    this.messageBus = options.messageBus;
     this.verificationThreshold = options.verificationThreshold ?? 0.7;
     this.maxAlternatives = options.maxAlternatives ?? 3;
   }
@@ -408,6 +414,67 @@ export class CommandSynthesisAgent extends BaseAgent {
     const { type, payload, sender, correlationId } = message;
 
     switch (type) {
+      case "task.assign": {
+        // Handle task assignment from planner
+        const taskPayload = payload as {
+          taskId: string;
+          planId: string;
+          taskType: string;
+          description: string;
+          payload: {
+            intent?: string;
+            tool?: string;
+            context?: string;
+          };
+        };
+
+        try {
+          if (taskPayload.taskType === "synthesize") {
+            const { intent, tool, context } = taskPayload.payload;
+            if (intent && tool) {
+              const proposal = await this.generateCommand(intent, tool as EDATool, context);
+              this.sendMessage({
+                recipient: sender,
+                type: "task.complete",
+                payload: {
+                  taskId: taskPayload.taskId,
+                  planId: taskPayload.planId,
+                  result: proposal,
+                },
+                correlationId,
+                priority: "high",
+              });
+              return;
+            }
+          }
+
+          // For other task types or missing data, acknowledge completion
+          this.sendMessage({
+            recipient: sender,
+            type: "task.complete",
+            payload: {
+              taskId: taskPayload.taskId,
+              planId: taskPayload.planId,
+              result: { acknowledged: true },
+            },
+            correlationId,
+          });
+        } catch (error) {
+          this.sendMessage({
+            recipient: sender,
+            type: "task.failed",
+            payload: {
+              taskId: taskPayload.taskId,
+              planId: taskPayload.planId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            correlationId,
+            priority: "critical",
+          });
+        }
+        break;
+      }
+
       case "command.generate": {
         const { intent, tool, context } = payload as {
           intent: string;
@@ -474,6 +541,42 @@ export class CommandSynthesisAgent extends BaseAgent {
    */
   protected async onInitialize(): Promise<void> {
     console.log(`[CommandSynthesisAgent] Initialized with KB: ${this.knowledgeBase.getStats()}`);
+
+    // Register with MessageBus if available
+    if (this.messageBus) {
+      this.messageBus.registerAgent("command-synthesis" as AgentId, async (message) => {
+        // Convert MessageBus format to BaseAgent format
+        const convertedMessage: AgentMessage = {
+          id: message.id,
+          type: message.type,
+          sender: message.from,
+          recipient: message.to === "broadcast" ? "broadcast" : message.to,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority,
+          correlationId: message.correlationId,
+        };
+        await this.receiveMessage(convertedMessage);
+      });
+
+      // Set up event forwarding from BaseAgent to MessageBus
+      this.on("sendMessage", (message: AgentMessage) => {
+        // Convert BaseAgent format to MessageBus format
+        const busMessage: BusAgentMessage = {
+          id: message.id,
+          from: message.sender as AgentId,
+          to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
+          type: message.type as import("./MessageBus").MessageType,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority ?? "normal",
+          correlationId: message.correlationId,
+        };
+        this.messageBus!.send(busMessage).catch((err) => {
+          console.error("[CommandSynthesisAgent] Failed to send message via MessageBus:", err);
+        });
+      });
+    }
   }
 
   /**

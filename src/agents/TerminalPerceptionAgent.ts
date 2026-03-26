@@ -307,6 +307,35 @@ export class TerminalPerceptionAgent extends BaseAgent {
     this.log("debug", `Received message: ${message.type} from ${message.sender}`);
 
     switch (message.type) {
+      case "task.assign": {
+        // Handle task assignment from planner
+        const payload = message.payload as {
+          taskId: string;
+          planId: string;
+          taskType: string;
+          description: string;
+          payload: unknown;
+        };
+
+        // Respond with current terminal state for perceive tasks
+        this.sendMessage({
+          recipient: message.sender,
+          type: "task.complete",
+          payload: {
+            taskId: payload.taskId,
+            planId: payload.planId,
+            result: {
+              state: this.currentState,
+              promptType: this.currentPromptType,
+              outputBuffer: this.outputBuffer.slice(-1000), // Last 1000 chars
+              timestamp: Date.now(),
+            },
+          },
+          correlationId: message.correlationId,
+        });
+        break;
+      }
+
       case "query.terminal.state":
         // Respond with current terminal state
         this.sendMessage({
