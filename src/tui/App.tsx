@@ -6,6 +6,7 @@ import { ApprovalModal } from "./ApprovalModal.js";
 import { TerminalSession } from "../terminal/session.js";
 import { Agent } from "../agent/index.js";
 import { OrchestratorAgent, GoalResult } from "../agents/OrchestratorAgent.js";
+import { PlannerAgent } from "../agents/PlannerAgent.js";
 import { TerminalPerceptionAgent } from "../agents/TerminalPerceptionAgent.js";
 import { ExecutionAgent } from "../agents/ExecutionAgent.js";
 import { AgentState } from "../agents/BaseAgent.js";
@@ -183,6 +184,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   const sessionRef = useRef<TerminalSession | null>(null);
   const agentRef = useRef<Agent | null>(null);
   const orchestratorRef = useRef<OrchestratorAgent | null>(null);
+  const plannerRef = useRef<PlannerAgent | null>(null);
   const terminalPerceptionRef = useRef<TerminalPerceptionAgent | null>(null);
   const executionAgentRef = useRef<ExecutionAgent | null>(null);
 
@@ -209,9 +211,16 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   useEffect(() => {
     if (!orchestratorRef.current) {
       // Create agents
+      const planner = new PlannerAgent({
+        id: "planner",
+        name: "Planner",
+        debug: options.debug,
+      });
+
       const orchestrator = new OrchestratorAgent({
         id: "orchestrator",
         name: "Orchestrator",
+        planner,
         debug: options.debug,
       });
 
@@ -228,16 +237,19 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
 
       // Store refs
       orchestratorRef.current = orchestrator;
+      plannerRef.current = planner;
       terminalPerceptionRef.current = terminalPerception;
       executionAgentRef.current = executionAgent;
 
       // Initialize and start agents
       Promise.all([
+        planner.initialize(),
         orchestrator.initialize(),
         terminalPerception.initialize(),
         executionAgent.initialize(),
       ]).then(() => {
         return Promise.all([
+          planner.start(),
           orchestrator.start(),
           terminalPerception.start(),
           executionAgent.start(),
@@ -267,6 +279,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
         // Register initial agent statuses
         setAgentStatuses([
           { agentId: "orchestrator", state: "idle", lastActivity: Date.now() },
+          { agentId: "planner", state: "idle", lastActivity: Date.now() },
           { agentId: "terminal-perception", state: "idle", lastActivity: Date.now() },
           { agentId: "execution", state: "idle", lastActivity: Date.now() },
         ]);
@@ -277,6 +290,9 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
 
     // Cleanup on unmount
     return () => {
+      if (plannerRef.current) {
+        plannerRef.current.stop().catch(() => {});
+      }
       if (orchestratorRef.current) {
         orchestratorRef.current.stop().catch(() => {});
       }

@@ -367,6 +367,29 @@ export class OrchestratorAgent extends BaseAgent {
       }
     }
 
+    // EDA/Technical keywords that indicate an engineering task (not conversation)
+    const edaTechnicalPatterns = [
+      // Physical design concepts
+      /\b(floorplan|placement|routing|cts|clock\s*tree|synthesis|sta|timing)\b/i,
+      /\b(congestion|density|utilization|congestion|drc|lvs|parasitic)\b/i,
+      /\b(hold|setup|slack|violation|constraint|sdc|library|lef|def|gds)\b/i,
+      /\b(power|area|timing\s*closure|signoff|pv|physical\s*verification)\b/i,
+      // Commands and operations
+      /\b(commands?|tcl|script|report|generate|create|analyze|check)\b/i,
+      /\b(optimize|tune|adjust|configure|set\s*up|implement)\b/i,
+      // Design elements
+      /\b(cell|instance|net|pin|port|layer|metal|via|track|site)\b/i,
+      /\b(macros?|memory|io|pad|bump|die|core|row|column)\b/i,
+      // EDA file formats
+      /\b(verilog|vhdl|netlist|spef|sdf|liberty|lef|def|gdsii|oasis)\b/i,
+      // Analysis types
+      /\b(crosstalk|noise|si|ir\s*drop|em|electromigration|thermal)\b/i,
+      // Process/Methodology
+      /\b(28nm|7nm|5nm|3nm|finfet|process|node|technology)\b/i,
+    ];
+
+    const hasTechnicalContent = edaTechnicalPatterns.some((p) => p.test(input));
+
     // Detect intent type based on keywords
     let type: IntentType = "unknown";
     let confidence = 0.5;
@@ -415,6 +438,12 @@ export class OrchestratorAgent extends BaseAgent {
       if (/\bpower\b/i.test(inputLower)) entities.target = "power";
       if (/\bcongestion\b/i.test(inputLower)) entities.target = "congestion";
     }
+    // Technical queries with EDA context - treat as execute_command, not conversation
+    else if (hasTechnicalContent) {
+      type = "execute_command";
+      confidence = 0.75;
+      description = `Technical query: ${input}`;
+    }
     // Status query patterns
     else if (
       /\b(status|progress|how\s+(is|are)|what\s+is|check|report|show\s+me)\b/i.test(
@@ -435,27 +464,28 @@ export class OrchestratorAgent extends BaseAgent {
       confidence = 0.75;
       description = `Learning request: ${input}`;
     }
-    // Conversation patterns
+    // Conversation patterns - only match true conversational intents
     else if (
-      /\b(hello|hi|hey|help|what|how|why|when|where|who|can\s+you|do\s+you)\b/i.test(
-        inputLower
-      ) &&
-      !/\b(run|execute|perform|debug|fix)\b/i.test(inputLower)
+      /\b(hello|hi|hey|help|thanks|thank\s+you|bye|goodbye)\b/i.test(inputLower) &&
+      !hasTechnicalContent
     ) {
       type = "conversation";
       confidence = 0.6;
       description = `Conversation: ${input}`;
     }
-    // Default to execute command
+    // Default to execute command for any remaining queries
     else {
       type = "execute_command";
       confidence = 0.65;
       description = `Execute: ${input}`;
     }
 
-    // Boost confidence if tool was detected
+    // Boost confidence if tool was detected or technical content found
     if (targetTool) {
       confidence = Math.min(confidence + 0.1, 1.0);
+    }
+    if (hasTechnicalContent) {
+      confidence = Math.min(confidence + 0.05, 1.0);
     }
 
     return {

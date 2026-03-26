@@ -12,7 +12,8 @@
  * @see docs/architecture/multi-agent-system-final.md
  */
 
-import BaseAgent, { AgentMessage } from "./BaseAgent";
+import BaseAgent, { AgentMessage, BaseAgentOptions } from "./BaseAgent";
+import { MessageBus, AgentId, AgentMessage as BusAgentMessage } from "./MessageBus";
 import KnowledgeBase, {
   VectorIndices,
   CommandMetadata,
@@ -134,6 +135,16 @@ export interface KnowledgeStats {
 }
 
 /**
+ * Configuration options for KnowledgeCuratorAgent initialization
+ */
+export interface KnowledgeCuratorOptions extends BaseAgentOptions {
+  /** KnowledgeBase instance for RAG queries */
+  knowledgeBase: KnowledgeBase;
+  /** MessageBus instance for inter-agent communication */
+  messageBus?: MessageBus;
+}
+
+/**
  * KnowledgeCuratorAgent manages the lifecycle of EDA knowledge in the system.
  *
  * Responsibilities:
@@ -147,21 +158,26 @@ export class KnowledgeCuratorAgent extends BaseAgent {
   /** Reference to the KnowledgeBase instance */
   private knowledgeBase: KnowledgeBase;
 
+  /** Reference to the MessageBus instance */
+  private messageBus?: MessageBus;
+
   /** Track seeded status to avoid duplicate seeding */
   private isSeeded = false;
 
   /**
    * Creates a new KnowledgeCuratorAgent instance.
    *
-   * @param knowledgeBase - The KnowledgeBase instance to manage
+   * @param options - Configuration options including knowledgeBase
    */
-  constructor(knowledgeBase: KnowledgeBase) {
-    super({
-      id: "knowledge-curator",
-      name: "Knowledge Curator Agent",
-    });
+  constructor(options: KnowledgeCuratorOptions) {
+    super(options);
 
-    this.knowledgeBase = knowledgeBase;
+    if (!options.knowledgeBase) {
+      throw new Error("KnowledgeCuratorAgent requires a KnowledgeBase instance");
+    }
+
+    this.knowledgeBase = options.knowledgeBase;
+    this.messageBus = options.messageBus;
   }
 
   /**
@@ -170,6 +186,42 @@ export class KnowledgeCuratorAgent extends BaseAgent {
    */
   protected async onInitialize(): Promise<void> {
     console.log("[KnowledgeCuratorAgent] Initializing...");
+
+    // Register with MessageBus if available
+    if (this.messageBus) {
+      this.messageBus.registerAgent("knowledge-curator" as AgentId, async (message) => {
+        // Convert MessageBus format to BaseAgent format
+        const convertedMessage: AgentMessage = {
+          id: message.id,
+          type: message.type,
+          sender: message.from,
+          recipient: message.to === "broadcast" ? "broadcast" : message.to,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority,
+          correlationId: message.correlationId,
+        };
+        await this.receiveMessage(convertedMessage);
+      });
+
+      // Set up event forwarding from BaseAgent to MessageBus
+      this.on("sendMessage", (message: AgentMessage) => {
+        // Convert BaseAgent format to MessageBus format
+        const busMessage: BusAgentMessage = {
+          id: message.id,
+          from: message.sender as AgentId,
+          to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
+          type: message.type as import("./MessageBus").MessageType,
+          payload: message.payload,
+          timestamp: message.timestamp,
+          priority: message.priority ?? "normal",
+          correlationId: message.correlationId,
+        };
+        this.messageBus!.send(busMessage).catch((err) => {
+          console.error("[KnowledgeCuratorAgent] Failed to send message via MessageBus:", err);
+        });
+      });
+    }
 
     // Check if Pinecone is available
     if (!this.knowledgeBase.isPersistentAvailable()) {
@@ -246,6 +298,66 @@ export class KnowledgeCuratorAgent extends BaseAgent {
         break;
       }
 
+      case "task.assign": {
+        // Handle task assignment from planner
+        const taskPayload = message.payload as {
+          taskId: string;
+          planId: string;
+          taskType: string;
+          description: string;
+          payload: {
+            query?: string;
+            context?: string;
+          };
+        };
+
+        try {
+          if (taskPayload.taskType === "query_knowledge") {
+            const { query, context } = taskPayload.payload;
+            if (query) {
+              const result = await this.knowledgeBase.retrieveAndGenerate(query, context);
+              this.sendMessage({
+                recipient: message.sender,
+                type: "task.complete",
+                payload: {
+                  taskId: taskPayload.taskId,
+                  planId: taskPayload.planId,
+                  result,
+                },
+                correlationId: message.correlationId,
+                priority: "high",
+              });
+              return;
+            }
+          }
+
+          // For other task types or missing data, acknowledge completion
+          this.sendMessage({
+            recipient: message.sender,
+            type: "task.complete",
+            payload: {
+              taskId: taskPayload.taskId,
+              planId: taskPayload.planId,
+              result: { acknowledged: true },
+            },
+            correlationId: message.correlationId,
+          });
+        } catch (error) {
+          this.sendMessage({
+            recipient: message.sender,
+            type: "task.failed",
+            payload: {
+              taskId: taskPayload.taskId,
+              planId: taskPayload.planId,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            correlationId: message.correlationId,
+            priority: "critical",
+          });
+        }
+        break;
+      }
+
       case "knowledge.query": {
         const { query, correlationId } = message.payload as {
           query: string;
@@ -314,6 +426,14 @@ export class KnowledgeCuratorAgent extends BaseAgent {
   async seedInitialKnowledge(): Promise<void> {
     if (this.isSeeded) {
       console.log("[KnowledgeCuratorAgent] Knowledge already seeded, skipping");
+      return;
+    }
+
+    // Skip seeding if persistent storage is not available
+    // (Knowledge will be stored in-memory only via reflective tier)
+    if (!this.knowledgeBase.isPersistentAvailable()) {
+      console.log("[KnowledgeCuratorAgent] Persistent storage not available. Skipping initial seeding - knowledge will be learned dynamically.");
+      this.isSeeded = true;
       return;
     }
 
