@@ -31,20 +31,25 @@ When the user asks you to run a command or perform an action:
 2. If it requires running a terminal command, propose it clearly
 3. The user will approve before execution
 
+When the user asks about EDA tool operations (placement, routing, timing analysis, etc.),
+ALWAYS include the specific TCL command they should run in an execute block like this:
+
+\`\`\`execute
+<tcl command to run>
+\`\`\`
+
+For example, if asked about placement optimization, include:
+\`\`\`execute
+optDesign -preCTS
+\`\`\`
+
 You have deep knowledge of:
 - Physical design concepts (floorplanning, placement, routing, timing closure)
 - Tcl scripting for EDA tools
 - File formats (LIB, LEF, DEF, SDC, SPEF)
 - Common EDA workflows and best practices
 
-Be concise but thorough. Explain your reasoning when suggesting commands.
-
-When you want to execute a command, format it like this:
-\`\`\`execute
-<command to run>
-\`\`\`
-
-The system will then ask the user for approval before running it.`;
+Be concise but thorough. Explain your reasoning when suggesting commands.`;
 
 export class Agent {
   private provider: string;
