@@ -1,0 +1,64 @@
+{
+  "testType": "TUI Integration",
+  "sessionName": "tui-integration-1774574128451",
+  "totalTests": 3,
+  "totalActivities": 20,
+  "totalMessages": 0,
+  "tokenUsage": {
+    "inputTokens": 2356,
+    "outputTokens": 2063,
+    "totalTokens": 4419,
+    "estimationMethod": "character_based"
+  },
+  "coordinationScore": 80,
+  "agentParticipation": [
+    {
+      "agentId": "planner",
+      "activities": 7,
+      "llmCalls": 3,
+      "messages": 0
+    },
+    {
+      "agentId": "orchestrator",
+      "activities": 1,
+      "llmCalls": 0,
+      "messages": 0
+    },
+    {
+      "agentId": "terminal-perception",
+      "activities": 1,
+      "llmCalls": 0,
+      "messages": 0
+    },
+    {
+      "agentId": "execution",
+      "activities": 1,
+      "llmCalls": 0,
+      "messages": 0
+    },
+    {
+      "agentId": "command-synthesis",
+      "activities": 7,
+      "llmCalls": 3,
+      "messages": 0
+    },
+    {
+      "agentId": "verification",
+      "activities": 1,
+      "llmCalls": 0,
+      "messages": 0
+    },
+    {
+      "agentId": "knowledge-curator",
+      "activities": 1,
+      "llmCalls": 0,
+      "messages": 0
+    },
+    {
+      "agentId": "recovery",
+      "activities": 1,
+      "llmCalls": 0,
+      "messages": 0
+    }
+  ]
+}
