@@ -22,6 +22,10 @@ export default defineConfig({
     "commander",
     "conf",
     "xterm-headless",
+    "neo-blessed",
+    "term.js",
+    "pty.js",
+    "blessed",
   ],
   noExternal: ["xterm-addon-serialize"],
   esbuildOptions(options) {

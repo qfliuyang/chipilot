@@ -278,18 +278,12 @@ export class PlannerAgent extends BaseAgent {
     const tasks: Task[] = [];
     const dependencies = new Map<string, string[]>();
 
-    // Use LLM to analyze the goal and generate task strategy
-    let planStrategy: string;
-    try {
-      planStrategy = await this.processWithLLM(
-        `Analyze this EDA design goal and provide a brief strategy for achieving it:\n\nGoal: ${goal}\nTool: ${context?.tool || "innovus"}\n\nWhat are the key steps needed?`,
-        { cwd: context?.designContext }
-      );
-      this.logger("debug", "LLM plan strategy generated");
-    } catch (error) {
-      this.logger("warn", "LLM call failed, using rule-based planning:", error);
-      planStrategy = "Using rule-based task generation";
-    }
+    // Use LLM to analyze the goal and generate task strategy - MUST succeed, no fallback
+    const planStrategy = await this.processWithLLM(
+      `Analyze this EDA design goal and provide a brief strategy for achieving it:\n\nGoal: ${goal}\nTool: ${context?.tool || "innovus"}\n\nWhat are the key steps needed?`,
+      { cwd: context?.designContext }
+    );
+    this.logger("debug", "LLM plan strategy generated:", planStrategy);
 
     // Try to retrieve workflow template from KnowledgeBase
     const workflowTemplate = await this.queryWorkflowTemplate(goal, context?.tool);

@@ -9,6 +9,7 @@ export interface AgentOptions {
   baseURL?: string;
   systemPrompt?: string;
   recorder?: AgentRecorder;
+  agentId?: string;
 }
 
 export interface AgentContext {
@@ -59,11 +60,13 @@ export class Agent {
   private client: Anthropic | null = null;
   private conversationHistory: Anthropic.MessageParam[] = [];
   private recorder?: AgentRecorder;
+  private agentId: string;
 
   constructor(options: AgentOptions) {
     this.provider = options.provider;
     this.model = options.model || this.getDefaultModel();
     this.recorder = options.recorder;
+    this.agentId = options.agentId || "unknown-agent";
 
     if (options.provider === "anthropic") {
       const apiKey = options.apiKey || process.env.CHIPILOT_ANTHROPIC_API_KEY;
@@ -126,9 +129,9 @@ export class Agent {
 
   private async chatAnthropic(): Promise<AgentResponse> {
     if (!this.client) {
-      return {
-        message: "Anthropic client not initialized. Please set CHIPILOT_ANTHROPIC_API_KEY environment variable.",
-      };
+      throw new Error(
+        "Anthropic client not initialized. Please set CHIPILOT_ANTHROPIC_API_KEY environment variable."
+      );
     }
 
     try {
@@ -148,7 +151,7 @@ export class Agent {
             .join("\n");
         }
       }
-      this.recorder?.recordLLMCall("fallback-agent", prompt, this.model);
+      this.recorder?.recordLLMCall(this.agentId, prompt, this.model);
 
       const startTime = Date.now();
       const response = await this.client.messages.create({
@@ -167,7 +170,7 @@ export class Agent {
 
       // Record the response with token usage
       this.recorder?.recordLLMResponse(
-        "fallback-agent",
+        this.agentId,
         message,
         {
           input: response.usage?.input_tokens || 0,
@@ -200,10 +203,9 @@ export class Agent {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       // Record the error
-      this.recorder?.recordError("fallback-agent", errorMessage);
-      return {
-        message: `Error calling Claude API: ${errorMessage}`,
-      };
+      this.recorder?.recordError(this.agentId, errorMessage);
+      // Re-throw the error - NEVER return fake responses
+      throw error;
     }
   }
 

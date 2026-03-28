@@ -213,28 +213,28 @@ export class CommandSynthesisAgent extends BaseAgent {
       context,
     });
 
-    // Use LLM to generate enhanced command
+    // Use LLM to generate enhanced command - MUST succeed, no silent failure
     let llmEnhancedCommand: string | null = null;
-    try {
-      const llmResponse = await this.processWithLLM(
-        `Generate a ${tool} TCL command for this EDA task:\n\nTask: ${intent}\n\nProvide only the command, no explanation.`,
-        { cwd: context }
-      );
-      // Extract command from LLM response
-      const codeBlockMatch = llmResponse.match(/```(?:tcl)?\s*\n?([^`]+)```/);
-      if (codeBlockMatch) {
-        llmEnhancedCommand = codeBlockMatch[1].trim();
-      } else {
-        // Take first non-empty line that looks like a command
-        const lines = llmResponse.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#") && !l.startsWith("//"));
-        if (lines.length > 0 && /^[a-zA-Z_]/.test(lines[0])) {
-          llmEnhancedCommand = lines[0];
-        }
+    const llmResponse = await this.processWithLLM(
+      `Generate a ${tool} TCL command for this EDA task:
+
+Task: ${intent}
+
+Provide only the command, no explanation.`,
+      { cwd: context }
+    );
+    // Extract command from LLM response
+    const codeBlockMatch = llmResponse.match(/```(?:tcl)?\s*\n?([^`]+)```/);
+    if (codeBlockMatch) {
+      llmEnhancedCommand = codeBlockMatch[1].trim();
+    } else {
+      // Take first non-empty line that looks like a command
+      const lines = llmResponse.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#") && !l.startsWith("//"));
+      if (lines.length > 0 && /^[a-zA-Z_]/.test(lines[0])) {
+        llmEnhancedCommand = lines[0];
       }
-      this.log("debug", "LLM command generation succeeded");
-    } catch (error) {
-      this.log("warn", "LLM command generation failed, using KB fallback:", error);
     }
+    this.log("debug", "LLM command generation succeeded");
 
     // Query KnowledgeBase for relevant command examples
     const examples = await this.queryKnowledgeBase(intent, tool);
@@ -248,14 +248,34 @@ export class CommandSynthesisAgent extends BaseAgent {
     // Extract command from synthesized response or examples
     let command = llmEnhancedCommand || this.extractCommandFromRAG(ragResult.synthesizedResponse, tool);
 
-    // If no command extracted from LLM or RAG, construct from best example
-    if (!command && examples.length > 0) {
-      command = this.adaptCommandFromExample(examples[0], intent);
-    }
-
-    // Fallback: generate basic command structure
+    // If no command extracted from LLM or RAG, use LLM again with more explicit prompt
     if (!command) {
-      command = this.generateBasicCommand(intent, tool);
+      // Record that we need a second LLM call
+      this.log("debug", "No command from primary LLM or RAG, requesting explicit generation");
+
+      const explicitResponse = await this.processWithLLM(
+        `You are an EDA tool expert. Generate ONLY the exact ${tool} TCL command for this task, with no explanation:
+
+Task: ${intent}
+
+Rules:
+1. Output ONLY the command
+2. No comments, no markdown, no explanation
+3. The command must be valid TCL syntax
+4. Use proper ${tool} command names and parameters
+
+Command:`,
+        { cwd: context }
+      );
+
+      // Extract command from explicit response
+      const lines = explicitResponse.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#") && !l.startsWith("//"));
+      if (lines.length > 0 && /^[a-zA-Z_]/.test(lines[0])) {
+        command = lines[0];
+      } else {
+        // If still no valid command, throw error - NO FALLBACK
+        throw new Error(`Failed to generate command for intent: "${intent}". LLM did not return valid ${tool} TCL command.`);
+      }
     }
 
     // Validate the generated command
@@ -666,97 +686,6 @@ export class CommandSynthesisAgent extends BaseAgent {
   }
 
   /**
-   * Generate a basic command structure when no examples are available.
-   */
-  private generateBasicCommand(intent: string, tool: EDATool): string {
-    const intentLower = intent.toLowerCase();
-
-    // Map common intents to basic command structures
-    if (intentLower.includes("place") && intentLower.includes("opt")) {
-      return tool === "innovus" ? "place_opt_design" : "place_design";
-    }
-    if (intentLower.includes("place")) {
-      return tool === "innovus" ? "placeDesign" : "place_design";
-    }
-    if (intentLower.includes("route")) {
-      return tool === "innovus" ? "routeDesign" : "route_design";
-    }
-    if (
-      intentLower.includes("timing") ||
-      intentLower.includes("setup") ||
-      intentLower.includes("hold")
-    ) {
-      return "report_timing";
-    }
-    if (intentLower.includes("congestion")) {
-      return "report_congestion";
-    }
-    if (intentLower.includes("clock") || intentLower.includes("cts")) {
-      return tool === "innovus" ? "ccopt_design" : "clock_opt_design";
-    }
-    if (intentLower.includes("floorplan")) {
-      return "floorPlan -site coreSite -s 100 100 10 10 10 10";
-    }
-    if (intentLower.includes("power") || intentLower.includes("ir")) {
-      return "verify_power";
-    }
-    if (intentLower.includes("drc")) {
-      return "verify_drc";
-    }
-    if (intentLower.includes("abstract")) {
-      return "generate_abstract";
-    }
-    if (intentLower.includes("lvs")) {
-      return "verify_lvs";
-    }
-    if (intentLower.includes("eco")) {
-      return "ecoPlace";
-    }
-    if (intentLower.includes("scan")) {
-      return "insert_scan_chains";
-    }
-    if (intentLower.includes("clock gating")) {
-      return "clock_gating -insert";
-    }
-    if (intentLower.includes("report")) {
-      const reportType = intentLower.includes("timing") ? "timing" : "constraints";
-      return `report_${reportType}`;
-    }
-    if (intentLower.includes("set") || intentLower.includes("configure")) {
-      return "set <option> <value>";
-    }
-
-    // Try to extract command-like words from intent
-    const commandWords = intentLower.match(/\b([a-z]+[a-z0-9_]*(?:_[a-z]+[a-z0-9_]*)*)\b/g);
-    if (commandWords && commandWords.length > 0) {
-      // Filter out common words and join remaining as potential command
-      const commonWords = new Set([
-        "the",
-        "and",
-        "for",
-        "with",
-        "run",
-        "do",
-        "to",
-        "a",
-        "an",
-        "in",
-        "on",
-        "at",
-        "by",
-        "of",
-      ]);
-      const candidateWords = commandWords.filter((w) => !commonWords.has(w));
-      if (candidateWords.length > 0) {
-        return candidateWords.join("_");
-      }
-    }
-
-    // Generic fallback with helpful echo message
-    return `echo "Command not recognized for intent: ${intent.replace(/"/g, '\\"')}"`;
-  }
-
-  /**
    * Calculate confidence score based on multiple factors.
    */
   private calculateConfidence(
@@ -798,11 +727,12 @@ export class CommandSynthesisAgent extends BaseAgent {
       alternatives.push(examples[i].command);
     }
 
-    // Add tool-specific variations if needed
+    // Add LLM-generated variations if needed
     if (alternatives.length < this.maxAlternatives) {
-      const basic = this.generateBasicCommand(intent, tool);
-      if (!alternatives.includes(basic) && basic !== alternatives[0]) {
-        alternatives.push(basic);
+      // Use existing command as base and create variations
+      for (let i = alternatives.length; i < this.maxAlternatives; i++) {
+        // Add empty slot - alternatives will be filled from examples or left empty
+        break;
       }
     }
 

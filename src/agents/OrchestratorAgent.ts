@@ -277,24 +277,35 @@ export class OrchestratorAgent extends BaseAgent {
     });
 
     try {
-      // Step 1: Interpret intent using LLM for better understanding
+      // Step 1: Interpret intent using LLM - MUST succeed, no fallback
+      const intentAnalysis = await this.processWithLLM(
+        `Analyze this EDA design query and classify the intent. Return ONLY a JSON object with these fields:
+- type: one of [execute_command, debug_error, optimize_design, query_status, learn_pattern, multi_step_task, conversation]
+- targetTool: the EDA tool mentioned (innovus, genus, tempus, etc.) or null
+- description: brief description of the intent
+- confidence: number 0-1
+- entities: object with extracted parameters
+
+Input: "${userInput}"`,
+        { cwd: context?.cwd }
+      );
+
+      // Parse LLM response as JSON
       let intent: Intent;
       try {
-        const intentAnalysis = await this.processWithLLM(
-          `Analyze this EDA design query and classify the intent:\n\n"${userInput}"\n\nProvide: 1) Intent type (execute_command, debug_error, optimize_design, query_status), 2) Target EDA tool if mentioned, 3) Brief description`,
-          { cwd: context?.cwd }
-        );
-        this.logger("debug", "LLM intent analysis:", intentAnalysis);
-
-        // Use LLM analysis to enhance intent interpretation
-        intent = await this.interpretIntent(userInput);
-
-        // Enhance confidence if LLM succeeded
-        intent.confidence = Math.min(intent.confidence + 0.05, 1.0);
-      } catch (error) {
-        this.logger("warn", "LLM intent analysis failed, using rule-based interpretation:", error);
-        intent = await this.interpretIntent(userInput);
+        const jsonMatch = intentAnalysis.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          intent = JSON.parse(jsonMatch[0]) as Intent;
+        } else {
+          throw new Error("No JSON found in LLM response");
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, record the error and re-throw
+        this.recorder?.recordError(this.id, `Failed to parse LLM intent response: ${parseError}`);
+        throw new Error(`LLM intent analysis returned invalid format: ${intentAnalysis.substring(0, 100)}`);
       }
+
+      this.logger("debug", "LLM intent parsed:", intent);
 
       this.activeGoals.set(goalId, { startTime, intent });
 
