@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Message } from "../tui/App.js";
+import { AgentRecorder } from "../agents/AgentRecorder.js";
 
 export interface AgentOptions {
   provider: string;
@@ -7,6 +8,7 @@ export interface AgentOptions {
   apiKey?: string;
   baseURL?: string;
   systemPrompt?: string;
+  recorder?: AgentRecorder;
 }
 
 export interface AgentContext {
@@ -56,10 +58,12 @@ export class Agent {
   private model: string;
   private client: Anthropic | null = null;
   private conversationHistory: Anthropic.MessageParam[] = [];
+  private recorder?: AgentRecorder;
 
   constructor(options: AgentOptions) {
     this.provider = options.provider;
     this.model = options.model || this.getDefaultModel();
+    this.recorder = options.recorder;
 
     if (options.provider === "anthropic") {
       const apiKey = options.apiKey || process.env.CHIPILOT_ANTHROPIC_API_KEY;
@@ -74,6 +78,11 @@ export class Agent {
   }
 
   private getDefaultModel(): string {
+    // Check for environment variable override
+    const envModel = process.env.CHIPILOT_MODEL;
+    if (envModel) {
+      return envModel;
+    }
     switch (this.provider) {
       case "anthropic":
         return "claude-sonnet-4-6-20250514";
@@ -123,18 +132,50 @@ export class Agent {
     }
 
     try {
+      // Record LLM call
+      const lastMessage = this.conversationHistory[this.conversationHistory.length - 1];
+      let prompt = "";
+      if (lastMessage?.content) {
+        if (typeof lastMessage.content === "string") {
+          prompt = lastMessage.content;
+        } else if (Array.isArray(lastMessage.content)) {
+          // Extract text from content blocks
+          prompt = lastMessage.content
+            .filter((block): block is { type: "text"; text: string } =>
+              typeof block === "object" && block !== null && "type" in block && block.type === "text"
+            )
+            .map((block) => block.text)
+            .join("\n");
+        }
+      }
+      this.recorder?.recordLLMCall("fallback-agent", prompt, this.model);
+
+      const startTime = Date.now();
       const response = await this.client.messages.create({
         model: this.model,
         max_tokens: 4096,
         system: SYSTEM_PROMPT,
         messages: this.conversationHistory,
       });
+      const duration = Date.now() - startTime;
 
-      // Extract text from response
+      // Record LLM response
       const textBlocks = response.content.filter(
         (block): block is Anthropic.TextBlock => block.type === "text"
       );
       const message = textBlocks.map((b) => b.text).join("\n");
+
+      // Record the response with token usage
+      this.recorder?.recordLLMResponse(
+        "fallback-agent",
+        message,
+        {
+          input: response.usage?.input_tokens || 0,
+          output: response.usage?.output_tokens || 0,
+        },
+        undefined,
+        duration
+      );
 
       // Add to history
       this.conversationHistory.push({ role: "assistant", content: message });
@@ -158,6 +199,8 @@ export class Agent {
       return { message };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      // Record the error
+      this.recorder?.recordError("fallback-agent", errorMessage);
       return {
         message: `Error calling Claude API: ${errorMessage}`,
       };

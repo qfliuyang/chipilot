@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-03-27T23:40:46.294Z",
+  "testId": "e2e-test-1774654819234",
+  "testQuery": "What Innovus command shows the current floorplan?",
+  "model": "glm-5.1",
+  "indicators": {
+    "welcomeShown": true,
+    "initializingShown": true,
+    "processingShown": true,
+    "aiResponseShown": true,
+    "thinkingShown": true,
+    "commandSuggested": false
+  },
+  "telemetry": {
+    "llmCalls": 4,
+    "llmResponses": 4,
+    "stateChanges": 4,
+    "recordingFiles": 1,
+    "tokenUsage": {
+      "input": 311,
+      "output": 827
+    }
+  },
+  "llmResponses": [
+    {
+      "agentId": "fallback-agent",
+      "response": "# Intent Analysis\n\n| Attribute | Value |\n|-----------|-------|\n| **Intent Type** | `query_status` |\n| **Target EDA Tool** | Cadence Innovus |\n| **Description** | User wants to know the command to view/inspect the current floorplan status in Innovus |\n\n---\n\n## Answer\n\nThe command to display the current floorplan information in Innovus is:\n\n```execute\ngetFPlan\n```\n\nThis command reports the current floorplan configuration, including die area, core area, and placement area.",
+      "timestamp": 1774654831141,
+      "duration": 4872
+    },
+    {
+      "agentId": "orchestrator",
+      "response": "# Intent Analysis\n\n| Attribute | Value |\n|-----------|-------|\n| **Intent Type** | `query_status` |\n| **Target EDA Tool** | Cadence Innovus |\n| **Description** | User wants to know the command to view/inspect the current floorplan status in Innovus |\n\n---\n\n## Answer\n\nThe command to display the current floorplan information in Innovus is:\n\n\n\nThis command reports the current floorplan configuration, including die area, core area, and placement area.",
+      "timestamp": 1774654831141,
+      "duration": 4872
+    },
+    {
+      "agentId": "fallback-agent",
+      "response": "# Floorplan Visualization in Innovus\n\n## Strategy\n\nTo view the current floorplan in Innovus, you'll use the **`floorPlan`** command with the `-report` flag. This command will print a summary of the current floorplan configuration, including die area, core area, core margins, and core utilization.\n\n## Key Steps\n\n1. **Run the report command** to view the current floorplan status\n\n```execute\nfloorPlan -report\n```\n\n2. **Visual inspection (optional)** — If you're running in GUI mode, the floorplan wi",
+      "timestamp": 1774654840501,
+      "duration": 9357
+    },
+    {
+      "agentId": "planner",
+      "response": "# Floorplan Visualization in Innovus\n\n## Strategy\n\nTo view the current floorplan in Innovus, you'll use the **`floorPlan`** command with the `-report` flag. This command will print a summary of the current floorplan configuration, including die area, core area, core margins, and core utilization.\n\n## Key Steps\n\n1. **Run the report command** to view the current floorplan status\n\n\n\n2. **Visual inspection (optional)** — If you're running in GUI mode, the floorplan will be displayed in the layout vi",
+      "timestamp": 1774654840502,
+      "duration": 9358
+    }
+  ],
+  "hasRealLLMResponses": true,
+  "isMockFree": true,
+  "outputDir": "/Users/luzi/code/chipilot-cli/chipilot/.claude/worktrees/cli-test/tests/output/e2e-test-1774654819234",
+  "vhsFile": "/Users/luzi/code/chipilot-cli/chipilot/.claude/worktrees/cli-test/tests/output/e2e-test-1774654819234/vhs/session.cast",
+  "passed": true
+}

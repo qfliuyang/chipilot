@@ -10,6 +10,8 @@
  */
 
 import { EventEmitter } from "events";
+import type { AgentRecorder } from "./AgentRecorder";
+import { Agent } from "../agent/index.js";
 
 /**
  * Priority levels for agent messages
@@ -65,6 +67,9 @@ export interface BaseAgentOptions {
 
   /** Optional initial state - defaults to 'idle' */
   initialState?: AgentState;
+
+  /** Optional AgentRecorder for activity logging */
+  recorder?: AgentRecorder;
 }
 
 /**
@@ -105,6 +110,72 @@ export abstract class BaseAgent extends EventEmitter {
   /** Error information if state is 'error' */
   private _errorInfo?: Error;
 
+  /** Optional AgentRecorder for activity logging */
+  protected recorder?: AgentRecorder;
+
+  /** LLM agent for making real LLM calls */
+  private llmAgent?: Agent;
+
+  /**
+   * Process a task with LLM reasoning.
+   *
+   * This method makes real LLM calls using the Anthropic API to perform
+   * reasoning tasks. It tracks token usage via the AgentRecorder.
+   *
+   * @param prompt - The prompt to send to the LLM
+   * @param context - Optional context for the LLM call
+   * @returns The LLM response text
+   */
+  public async processWithLLM(
+    prompt: string,
+    context?: { terminalOutput?: string; cwd?: string }
+  ): Promise<string> {
+    // Initialize LLM agent if not already done
+    if (!this.llmAgent) {
+      this.llmAgent = new Agent({
+        provider: "anthropic",
+        model: process.env.CHIPILOT_MODEL,
+        systemPrompt: `You are ${this.name} (${this.id}) in a multi-agent system for EDA tool automation.
+You help with physical design tasks using tools like Cadence Innovus, Genus, and Tempus.
+Be concise and practical in your responses.`,
+        recorder: this.recorder,
+      });
+    }
+
+    // Record LLM call start with actual model name
+    const modelName = process.env.CHIPILOT_MODEL || "claude-sonnet-4-6-20250514";
+    this.recorder?.recordLLMCall(this.id, prompt, modelName);
+
+    const startTime = Date.now();
+
+    try {
+      const response = await this.llmAgent.chat(prompt, {
+        terminalOutput: context?.terminalOutput,
+        cwd: context?.cwd,
+      });
+
+      const duration = Date.now() - startTime;
+
+      // Record LLM response with token estimation
+      const outputTokens = this.recorder?.estimateTokens(response.message) || 0;
+      const inputTokens = this.recorder?.estimateTokens(prompt) || 0;
+
+      this.recorder?.recordLLMResponse(
+        this.id,
+        response.message,
+        { input: inputTokens, output: outputTokens },
+        undefined,
+        duration
+      );
+
+      return response.message;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.recorder?.recordError(this.id, `LLM call failed: ${errorMessage}`);
+      throw error;
+    }
+  }
+
   /**
    * Creates a new BaseAgent instance.
    *
@@ -118,6 +189,7 @@ export abstract class BaseAgent extends EventEmitter {
     this.parentId = options.parentId;
     this._state = options.initialState ?? "idle";
     this._lastStateChange = Date.now();
+    this.recorder = options.recorder;
 
     // Set up event emitter to handle more listeners for high-throughput agents
     this.setMaxListeners(50);
@@ -159,10 +231,15 @@ export abstract class BaseAgent extends EventEmitter {
   }
 
   /**
-   * Gets whether the agent is in an error state.
+   * Logs a message with the specified level.
+   *
+   * @param level - Log level (debug, info, warn, error)
+   * @param args - Arguments to log
    */
-   get isInError(): boolean {
-    return this._state === "error";
+  protected log(level: "debug" | "info" | "warn" | "error", ...args: unknown[]): void {
+    const timestamp = new Date().toISOString();
+    const prefix = `[${this.name}:${level.toUpperCase()}] ${timestamp}`;
+    console.log(prefix, ...args);
   }
 
   /**
@@ -270,6 +347,7 @@ export abstract class BaseAgent extends EventEmitter {
    * This is a terminal operation.
    */
   async cleanup(): Promise<void> {
+    // Allow cleanup from error state or stopped state
     if (this._state !== "stopped" && this._state !== "error") {
       // Auto-stop if not already stopped
       await this.stop();
@@ -280,6 +358,23 @@ export abstract class BaseAgent extends EventEmitter {
     this._initialized = false;
     this.removeAllListeners();
     this.emit("cleanedup", { agentId: this.id, timestamp: Date.now() });
+  }
+
+  /**
+   * Reset agent state from error back to idle.
+   *
+   * This allows recovery from error state without full re-initialization.
+   * Should be called when the error condition has been resolved.
+   *
+   * @throws Error if agent is not in error state
+   */
+  async resetState(): Promise<void> {
+    if (this._state !== "error") {
+      throw new Error(`Agent ${this.id} can only reset from 'error' state, currently in '${this._state}'`);
+    }
+
+    this._errorInfo = undefined;
+    this.transitionState("idle");
   }
 
   /**
@@ -439,6 +534,9 @@ export abstract class BaseAgent extends EventEmitter {
       newState,
       timestamp: this._lastStateChange,
     });
+
+    // Record state change in AgentRecorder
+    this.recorder?.recordStateChange(this.id, oldState, newState, { timestamp: this._lastStateChange });
   }
 
   /**

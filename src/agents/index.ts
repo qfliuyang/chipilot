@@ -19,6 +19,18 @@ export {
   type MessagePriority,
 } from "./BaseAgent";
 
+export {
+  AgentRecorder,
+  type ActivityRecord,
+  type ActivityType,
+  type TokenUsage,
+  type AgentStatistics,
+  type SessionStatistics,
+  type AgentRecorderConfig,
+  getAgentRecorder,
+  resetAgentRecorder,
+} from "./AgentRecorder";
+
 // ============================================================================
 // Communication Layer
 // ============================================================================
