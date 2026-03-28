@@ -57,11 +57,20 @@ if (typeof globalThis.document === "undefined") {
 }
 
 import { spawn } from "child_process";
-import { mkdirSync, writeFileSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Anti-Cheat: Import MockDetectionEngine
+let MockDetectionEngine;
+try {
+  const antiCheatModule = await import("./dist/testing/MockDetectionEngine.js");
+  MockDetectionEngine = antiCheatModule.MockDetectionEngine || antiCheatModule.default;
+} catch (e) {
+  console.warn("Warning: MockDetectionEngine not available, anti-cheat validation disabled");
+}
 
 // Complex technical EDA questions designed to test full agent coordination
 // Each question requires multiple agents to collaborate for complete solution
@@ -683,6 +692,63 @@ async function runTest() {
     console.log(summary);
     console.log(`\nFull report saved to: ${reportPath}`);
 
+    // Anti-Cheat Validation
+    console.log("\n--- Running Anti-Cheat Validation ---\n");
+
+    let antiCheatPassed = true;
+    let antiCheatReport = null;
+
+    if (MockDetectionEngine) {
+      try {
+        const engine = new MockDetectionEngine();
+        antiCheatReport = engine.analyzeTestOutput(outputDir);
+
+        // Save anti-cheat report
+        const antiCheatPath = join(outputDir, "anti-cheat-report.json");
+        writeFileSync(antiCheatPath, JSON.stringify(antiCheatReport, null, 2));
+
+        console.log(`Anti-Cheat Status: ${antiCheatReport.passed ? "✓ PASSED" : "✗ FAILED"}`);
+        console.log(`Violations: ${antiCheatReport.stats.criticalViolations} critical, ${antiCheatReport.stats.highViolations} high, ${antiCheatReport.stats.mediumViolations} medium, ${antiCheatReport.stats.lowViolations} low`);
+        console.log(`Summary: ${antiCheatReport.summary}`);
+
+        if (antiCheatReport.violations.length > 0) {
+          console.log("\nDetected Violations:");
+          for (const violation of antiCheatReport.violations.slice(0, 5)) {
+            console.log(`  [${violation.severity.toUpperCase()}] ${violation.category}: ${violation.description}`);
+          }
+          if (antiCheatReport.violations.length > 5) {
+            console.log(`  ... and ${antiCheatReport.violations.length - 5} more violations`);
+          }
+        }
+
+        console.log(`\nAnti-cheat report saved to: ${antiCheatPath}`);
+
+        antiCheatPassed = antiCheatReport.passed;
+
+        // Add anti-cheat results to the main report
+        report.antiCheat = {
+          passed: antiCheatReport.passed,
+          violations: antiCheatReport.violations.length,
+          summary: antiCheatReport.summary,
+          reportPath: antiCheatPath,
+        };
+
+        // Re-save the updated report
+        writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+      } catch (antiCheatError) {
+        console.error("Anti-cheat validation error:", antiCheatError.message);
+        antiCheatPassed = false;
+        report.antiCheat = {
+          passed: false,
+          error: antiCheatError.message,
+        };
+      }
+    } else {
+      console.log("MockDetectionEngine not available - skipping anti-cheat validation");
+      console.log("To enable: Build the project with 'npm run build'");
+    }
+
     // Cleanup
     console.log("\n--- Cleaning Up ---");
     await Promise.all([
@@ -695,6 +761,18 @@ async function runTest() {
       agents.verification.stop(),
     ]);
     console.log("All agents stopped\n");
+
+    // Final result
+    console.log("=== TEST RESULTS ===");
+    console.log(`Coordination Score: ${report.summary.coordinationScore}/100`);
+    console.log(`Anti-Cheat: ${antiCheatPassed ? "PASSED" : "FAILED"}`);
+    console.log(`Overall: ${antiCheatPassed && report.summary.evaluation !== "POOR" ? "PASSED" : "FAILED"}`);
+
+    if (!antiCheatPassed) {
+      console.log("\n✗ TEST FAILED: Anti-cheat validation detected potential cheating!");
+      console.log("Agents may be using hardcoded responses instead of real LLM calls.");
+      process.exit(1);
+    }
 
     return report;
 
