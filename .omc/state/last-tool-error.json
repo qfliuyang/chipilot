@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"node test-interactive.mjs 2>&1\",\"timeout\":300000,\"description\":\"Run interactive test to verify agent orchestration\"}",
-  "error": "Exit code 1\n=== chipilot Interactive Test ===\n\nResults will be saved to: /Users/luzi/code/chipilot-cli/chipilot/tests/output/interactive-test-1774505486764\n\n--- Test 1: Direct Agent Chat Tests ---\n\n[Agent Test] Question: How do I run placement optimization in Innovus?\n  ✓ Response received (8413ms, 1144 chars)\n  ✓ Proposed command: optDesign -preCTS...\n[Agent Test] Question: What command checks setup timing violations?\n  ✓ Response received (2148ms, 780 chars)\n  ✓ Proposed command: timeDesign -r...",
-  "timestamp": "2026-03-26T06:11:43.957Z",
-  "retry_count": 1
+  "tool_input_preview": "{\"command\":\"git commit -m \\\"revert: remove fake test evidence - E2E test did not actually call LLM API\\\"\",\"description\":\"Commit removal of fake evidence\"}",
+  "error": "Exit code 1\nOn branch worktree-cli-test\nYour branch is up to date with 'origin/main'.\n\nChanges not staged for commit:\n  (use \"git add/rm <file>...\" to update what will be committed)\n  (use \"git restore <file>...\" to discard changes in working directory)\n\tmodified:   .omc/project-memory.json\n\tmodified:   .omc/state/agent-replay-bbc10954-0ab3-4b18-bcc5-d2e0f60a36e5.jsonl\n\tdeleted:    .omc/state/checkpoints/checkpoint-2026-03-24T23-31-09-739Z.json\n\tdeleted:    .omc/state/checkpoints/checkpoint-2026...",
+  "timestamp": "2026-03-28T01:44:59.069Z",
+  "retry_count": 2
 }

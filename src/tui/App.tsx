@@ -10,6 +10,7 @@ import { PlannerAgent } from "../agents/PlannerAgent.js";
 import { TerminalPerceptionAgent } from "../agents/TerminalPerceptionAgent.js";
 import { ExecutionAgent } from "../agents/ExecutionAgent.js";
 import { AgentState } from "../agents/BaseAgent.js";
+import { getAgentRecorder } from "../agents/AgentRecorder.js";
 
 export interface ChipilotOptions {
   provider?: string;
@@ -179,6 +180,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
   const [agentStatuses, setAgentStatuses] = useState<AgentStatus[]>([]);
   const [currentGoal, setCurrentGoal] = useState<string | undefined>();
   const [, setGoalResult] = useState<GoalResult | null>(null);
+  const [agentsReady, setAgentsReady] = useState(false);
 
   // Refs for stable instances (created once)
   const sessionRef = useRef<TerminalSession | null>(null);
@@ -197,24 +199,39 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     sessionRef.current.start();
   }
 
-  // Initialize agent once
+  // Initialize the global recorder first (needed by both fallback Agent and orchestrator agents)
+  const recorderRef = useRef(getAgentRecorder({
+    outputDir: "./recordings",
+    sessionName: `tui-session-${Date.now()}`,
+    writeImmediately: true,
+    includePayloads: true,
+    consoleLog: options.debug ?? false,
+  }));
+
+  // Initialize agent once (with recorder for telemetry)
   if (!agentRef.current) {
     agentRef.current = new Agent({
       provider: options.provider || "anthropic",
       model: options.model,
       apiKey: options.apiKey,
       baseURL: options.baseURL,
+      recorder: recorderRef.current,
     });
   }
 
   // Initialize OrchestratorAgent and other agents
   useEffect(() => {
     if (!orchestratorRef.current) {
-      // Create agents
+      // Get the already-created recorder
+      const recorder = recorderRef.current;
+      recorder.startRecording();
+
+      // Create agents with recorder
       const planner = new PlannerAgent({
         id: "planner",
         name: "Planner",
         debug: options.debug,
+        recorder,
       });
 
       const orchestrator = new OrchestratorAgent({
@@ -222,17 +239,20 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
         name: "Orchestrator",
         planner,
         debug: options.debug,
+        recorder,
       });
 
       const terminalPerception = new TerminalPerceptionAgent({
         id: "terminal-perception",
         name: "Terminal Perception",
         debug: options.debug,
+        recorder,
       });
 
       const executionAgent = new ExecutionAgent({
         id: "execution",
         name: "Execution",
+        recorder,
       });
 
       // Store refs
@@ -283,6 +303,9 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
           { agentId: "terminal-perception", state: "idle", lastActivity: Date.now() },
           { agentId: "execution", state: "idle", lastActivity: Date.now() },
         ]);
+
+        // Mark agents as ready
+        setAgentsReady(true);
       }).catch((err) => {
         setMessages((m) => [...m, { role: "assistant", content: `Agent initialization error: ${err}` }]);
       });
@@ -385,7 +408,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     setCurrentGoal(msg);
 
     try {
-      if (orchestratorRef.current) {
+      if (agentsReady && orchestratorRef.current) {
         const result = await orchestratorRef.current.processGoal(msg, {
           cwd: process.cwd(),
           sessionId: "tui-session",
@@ -395,8 +418,11 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
         if (result.error) {
           setMessages((m) => [...m, { role: "assistant", content: `Error: ${result.error}` }]);
         }
+      } else if (!agentsReady) {
+        // Agents still initializing
+        setMessages((m) => [...m, { role: "assistant", content: "Agents are still initializing. Please wait a moment and try again." }]);
       } else {
-        // Fallback to old agent if orchestrator not ready
+        // Fallback to old agent if orchestrator not available
         const res = await agentRef.current!.chat(msg, {});
         setMessages((m) => [...m, { role: "assistant", content: res.message }]);
         if (res.proposedCommand) setCommand(res.proposedCommand);
@@ -406,7 +432,7 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
     }
     setLoading(false);
     setCurrentGoal(undefined);
-  }, [loading]);
+  }, [loading, agentsReady]);
 
   // Calculate visible messages with scroll support
   const maxVisibleMessages = Math.max(3, Math.floor((mainHeight - 4) / 3));
@@ -513,6 +539,8 @@ export const App: React.FC<{ options: ChipilotOptions }> = ({ options }) => {
         {pane === "chat" ? (
           loading ? (
             <Text dimColor>Waiting for AI...</Text>
+          ) : !agentsReady ? (
+            <Text color="yellow">Initializing agents...</Text>
           ) : (
             <>
               <Text color="cyan" bold>&gt; </Text>

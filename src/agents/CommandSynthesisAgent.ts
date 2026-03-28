@@ -206,6 +206,36 @@ export class CommandSynthesisAgent extends BaseAgent {
       throw new Error(`Agent ${this.id} must be running to generate commands`);
     }
 
+    // Record task started
+    this.recorder?.recordTaskStarted(this.id, `cmd-gen-${Date.now()}`, "command_generation", {
+      intent,
+      tool,
+      context,
+    });
+
+    // Use LLM to generate enhanced command
+    let llmEnhancedCommand: string | null = null;
+    try {
+      const llmResponse = await this.processWithLLM(
+        `Generate a ${tool} TCL command for this EDA task:\n\nTask: ${intent}\n\nProvide only the command, no explanation.`,
+        { cwd: context }
+      );
+      // Extract command from LLM response
+      const codeBlockMatch = llmResponse.match(/```(?:tcl)?\s*\n?([^`]+)```/);
+      if (codeBlockMatch) {
+        llmEnhancedCommand = codeBlockMatch[1].trim();
+      } else {
+        // Take first non-empty line that looks like a command
+        const lines = llmResponse.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("#") && !l.startsWith("//"));
+        if (lines.length > 0 && /^[a-zA-Z_]/.test(lines[0])) {
+          llmEnhancedCommand = lines[0];
+        }
+      }
+      this.log("debug", "LLM command generation succeeded");
+    } catch (error) {
+      this.log("warn", "LLM command generation failed, using KB fallback:", error);
+    }
+
     // Query KnowledgeBase for relevant command examples
     const examples = await this.queryKnowledgeBase(intent, tool);
 
@@ -216,9 +246,9 @@ export class CommandSynthesisAgent extends BaseAgent {
     );
 
     // Extract command from synthesized response or examples
-    let command = this.extractCommandFromRAG(ragResult.synthesizedResponse, tool);
+    let command = llmEnhancedCommand || this.extractCommandFromRAG(ragResult.synthesizedResponse, tool);
 
-    // If no command extracted from RAG, construct from best example
+    // If no command extracted from LLM or RAG, construct from best example
     if (!command && examples.length > 0) {
       command = this.adaptCommandFromExample(examples[0], intent);
     }
@@ -256,6 +286,13 @@ export class CommandSynthesisAgent extends BaseAgent {
       alternatives,
       requiresVerification,
     };
+
+    // Record task completed
+    this.recorder?.recordTaskCompleted(this.id, `cmd-gen-${Date.now()}`, {
+      command: proposal.command,
+      tool: proposal.tool,
+      confidence: proposal.confidence,
+    });
 
     // Emit event for monitoring
     this.emit("commandGenerated", {

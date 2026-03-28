@@ -182,7 +182,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
     this.sessionOutputHandler = this.handleTerminalOutput.bind(this);
     session.on("output", this.sessionOutputHandler);
 
-    this.log("debug", `Attached to terminal session: ${session.getShell()}`);
+    this.logger("debug", `Attached to terminal session: ${session.getShell()}`);
 
     // Emit attachment event
     this.emit("sessionAttached", {
@@ -204,7 +204,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
   detachFromSession(): void {
     if (this.terminalSession && this.sessionOutputHandler) {
       this.terminalSession.off("output", this.sessionOutputHandler);
-      this.log("debug", "Detached from terminal session");
+      this.logger("debug", "Detached from terminal session");
     }
 
     this.terminalSession = undefined;
@@ -304,7 +304,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
    * @param message - The message to handle
    */
   async handleMessage(message: BaseAgentMessage): Promise<void> {
-    this.log("debug", `Received message: ${message.type} from ${message.sender}`);
+    this.logger("debug", `Received message: ${message.type} from ${message.sender}`);
 
     switch (message.type) {
       case "task.assign": {
@@ -361,7 +361,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
         break;
 
       default:
-        this.log("debug", `Unhandled message type: ${message.type}`);
+        this.logger("debug", `Unhandled message type: ${message.type}`);
     }
   }
 
@@ -395,7 +395,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
       this.onCommandComplete(this.outputBuffer, duration);
     }
 
-    this.log("debug", `Terminal ready (${this.currentPromptType})`);
+    this.logger("debug", `Terminal ready (${this.currentPromptType})`);
   }
 
   /**
@@ -422,7 +422,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
       ...event,
     });
 
-    this.log("debug", "Terminal busy");
+    this.logger("debug", "Terminal busy");
   }
 
   /**
@@ -446,7 +446,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
       ...event,
     });
 
-    this.log("debug", `Command completed in ${duration}ms`);
+    this.logger("debug", `Command completed in ${duration}ms`);
   }
 
   /**
@@ -490,14 +490,14 @@ export class TerminalPerceptionAgent extends BaseAgent {
       });
     }
 
-    this.log("debug", `Error detected (${errorType}): ${error.substring(0, 100)}`);
+    this.logger("debug", `Error detected (${errorType}): ${error.substring(0, 100)}`);
   }
 
   /**
    * Lifecycle hook: Called during initialization
    */
   protected async onInitialize(): Promise<void> {
-    this.log("info", "TerminalPerceptionAgent initializing");
+    this.logger("info", "TerminalPerceptionAgent initializing");
 
     // Register with MessageBus
     this.messageBus.registerAgent("terminal-perception" as AgentId, async (message) => {
@@ -529,7 +529,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
         correlationId: message.correlationId,
       };
       this.messageBus.send(busMessage).catch((err) => {
-        this.log("error", "Failed to send message via MessageBus:", err);
+        this.logger("error", "Failed to send message via MessageBus:", err);
       });
     });
   }
@@ -538,28 +538,28 @@ export class TerminalPerceptionAgent extends BaseAgent {
    * Lifecycle hook: Called when starting
    */
   protected async onStart(): Promise<void> {
-    this.log("info", "TerminalPerceptionAgent started");
+    this.logger("info", "TerminalPerceptionAgent started");
   }
 
   /**
    * Lifecycle hook: Called when pausing
    */
   protected async onPause(): Promise<void> {
-    this.log("info", "TerminalPerceptionAgent paused");
+    this.logger("info", "TerminalPerceptionAgent paused");
   }
 
   /**
    * Lifecycle hook: Called when resuming
    */
   protected async onResume(): Promise<void> {
-    this.log("info", "TerminalPerceptionAgent resumed");
+    this.logger("info", "TerminalPerceptionAgent resumed");
   }
 
   /**
    * Lifecycle hook: Called when stopping
    */
   protected async onStop(): Promise<void> {
-    this.log("info", "TerminalPerceptionAgent stopping");
+    this.logger("info", "TerminalPerceptionAgent stopping");
     this.detachFromSession();
   }
 
@@ -567,7 +567,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
    * Lifecycle hook: Called during cleanup
    */
   protected async onCleanup(): Promise<void> {
-    this.log("info", "TerminalPerceptionAgent cleaning up");
+    this.logger("info", "TerminalPerceptionAgent cleaning up");
 
     // Unregister from MessageBus
     this.messageBus.unregisterAgent("terminal-perception" as AgentId);
@@ -674,7 +674,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
     this.messageBus
       .broadcast(eventMessage)
       .catch((err) => {
-        this.log("error", "Failed to broadcast event:", err);
+        this.logger("error", "Failed to broadcast event:", err);
       });
   }
 
@@ -684,7 +684,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
    * @param level - Log level
    * @param args - Arguments to log
    */
-  private log(level: "debug" | "info" | "warn" | "error", ...args: unknown[]): void {
+  private logger(level: "debug" | "info" | "warn" | "error", ...args: unknown[]): void {
     if (!this.debug && level === "debug") return;
 
     const timestamp = new Date().toISOString();

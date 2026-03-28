@@ -442,7 +442,7 @@ export class RecoveryAgent extends BaseAgent {
    * Loads recovery patterns from KnowledgeBase if available.
    */
   protected async onInitialize(): Promise<void> {
-    this.log("info", "Initializing RecoveryAgent with built-in patterns", {
+    this.logger("info", "Initializing RecoveryAgent with built-in patterns", {
       patternCount: this.builtInPatterns.length,
     });
 
@@ -450,9 +450,9 @@ export class RecoveryAgent extends BaseAgent {
     if (this.knowledgeBase) {
       try {
         const patterns = await this.loadPatternsFromKnowledgeBase();
-        this.log("info", `Loaded ${patterns.length} patterns from KnowledgeBase`);
+        this.logger("info", `Loaded ${patterns.length} patterns from KnowledgeBase`);
       } catch (error) {
-        this.log("warn", "Failed to load patterns from KnowledgeBase, using built-in only", error);
+        this.logger("warn", "Failed to load patterns from KnowledgeBase, using built-in only", error);
       }
     }
 
@@ -467,28 +467,28 @@ export class RecoveryAgent extends BaseAgent {
    * Lifecycle hook: Start the agent.
    */
   protected async onStart(): Promise<void> {
-    this.log("info", "RecoveryAgent started and ready");
+    this.logger("info", "RecoveryAgent started and ready");
   }
 
   /**
    * Lifecycle hook: Pause the agent.
    */
   protected async onPause(): Promise<void> {
-    this.log("info", "RecoveryAgent paused");
+    this.logger("info", "RecoveryAgent paused");
   }
 
   /**
    * Lifecycle hook: Resume the agent.
    */
   protected async onResume(): Promise<void> {
-    this.log("info", "RecoveryAgent resumed");
+    this.logger("info", "RecoveryAgent resumed");
   }
 
   /**
    * Lifecycle hook: Stop the agent.
    */
   protected async onStop(): Promise<void> {
-    this.log("info", "RecoveryAgent stopped");
+    this.logger("info", "RecoveryAgent stopped");
     this.isRecovering = false;
   }
 
@@ -498,7 +498,7 @@ export class RecoveryAgent extends BaseAgent {
   protected async onCleanup(): Promise<void> {
     this.checkpoints.clear();
     this.recoveryPlans.clear();
-    this.log("info", "RecoveryAgent cleanup complete");
+    this.logger("info", "RecoveryAgent cleanup complete");
   }
 
   /**
@@ -507,7 +507,7 @@ export class RecoveryAgent extends BaseAgent {
    * @param message - Message from MessageBus
    */
   async handleMessage(message: AgentMessage): Promise<void> {
-    this.log("debug", `Received message: ${message.type}`, { from: message.sender });
+    this.logger("debug", `Received message: ${message.type}`, { from: message.sender });
 
     switch (message.type) {
       case "recovery.request":
@@ -535,7 +535,7 @@ export class RecoveryAgent extends BaseAgent {
         break;
 
       default:
-        this.log("warn", `Unknown message type: ${message.type}`);
+        this.logger("warn", `Unknown message type: ${message.type}`);
     }
   }
 
@@ -561,7 +561,7 @@ export class RecoveryAgent extends BaseAgent {
     this.checkpoints.set(checkpoint.id, checkpoint);
     this.stats.checkpointsCreated++;
 
-    this.log("info", `Checkpoint created: ${checkpoint.id}`, { description });
+    this.logger("info", `Checkpoint created: ${checkpoint.id}`, { description });
     this.emit("checkpoint:created", { checkpointId: checkpoint.id, description });
 
     return checkpoint;
@@ -581,7 +581,7 @@ export class RecoveryAgent extends BaseAgent {
     const startTime = Date.now();
     this.isRecovering = true;
 
-    this.log("info", "Recovery requested", { error: params.error, correlationId: params.correlationId });
+    this.logger("info", "Recovery requested", { error: params.error, correlationId: params.correlationId });
 
     try {
       // Step 1: Diagnose the error
@@ -671,7 +671,7 @@ export class RecoveryAgent extends BaseAgent {
       matchedPatterns: matchedPatterns.map((p) => p.id),
     };
 
-    this.log("info", `Error diagnosed: ${errorType}`, {
+    this.logger("info", `Error diagnosed: ${errorType}`, {
       confidence,
       isRecoverable,
       rootCause,
@@ -748,7 +748,7 @@ export class RecoveryAgent extends BaseAgent {
 
     this.recoveryPlans.set(plan.id, plan);
 
-    this.log("info", `Recovery plan created: ${plan.id}`, {
+    this.logger("info", `Recovery plan created: ${plan.id}`, {
       actionCount: actions.length,
       errorType: diagnosis.errorType,
     });
@@ -766,7 +766,7 @@ export class RecoveryAgent extends BaseAgent {
     const startTime = Date.now();
     plan.status = "in_progress";
 
-    this.log("info", `Executing recovery plan: ${plan.id}`);
+    this.logger("info", `Executing recovery plan: ${plan.id}`);
 
     for (let i = 0; i < plan.actions.length; i++) {
       const action = plan.actions[i];
@@ -774,11 +774,11 @@ export class RecoveryAgent extends BaseAgent {
 
       // Check if we've exceeded max attempts
       if (plan.attemptCount >= this.maxRecoveryAttempts) {
-        this.log("warn", "Max recovery attempts exceeded");
+        this.logger("warn", "Max recovery attempts exceeded");
         break;
       }
 
-      this.log("info", `Attempting recovery action: ${action.strategy}`, {
+      this.logger("info", `Attempting recovery action: ${action.strategy}`, {
         description: action.description,
         confidence: action.confidence,
       });
@@ -800,12 +800,12 @@ export class RecoveryAgent extends BaseAgent {
           };
 
           this.consecutiveFailures = 0;
-          this.log("info", "Recovery succeeded", { action: action.strategy });
+          this.logger("info", "Recovery succeeded", { action: action.strategy });
 
           return result;
         }
       } catch (error) {
-        this.log("error", `Recovery action failed: ${action.strategy}`, error);
+        this.logger("error", `Recovery action failed: ${action.strategy}`, error);
         plan.attemptCount++;
       }
     }
@@ -826,7 +826,7 @@ export class RecoveryAgent extends BaseAgent {
         this.enableAutoEscalation && this.consecutiveFailures >= this.escalationThreshold,
     };
 
-    this.log("error", "Recovery failed - all actions exhausted", {
+    this.logger("error", "Recovery failed - all actions exhausted", {
       attempts: plan.attemptCount,
       requiresEscalation: result.requiresEscalation,
     });
@@ -864,7 +864,7 @@ export class RecoveryAgent extends BaseAgent {
   removeCheckpoint(checkpointId: string): boolean {
     const removed = this.checkpoints.delete(checkpointId);
     if (removed) {
-      this.log("info", `Checkpoint removed: ${checkpointId}`);
+      this.logger("info", `Checkpoint removed: ${checkpointId}`);
     }
     return removed;
   }
@@ -874,7 +874,7 @@ export class RecoveryAgent extends BaseAgent {
    */
   clearCheckpoints(): void {
     this.checkpoints.clear();
-    this.log("info", "All checkpoints cleared");
+    this.logger("info", "All checkpoints cleared");
   }
 
   /**
@@ -982,7 +982,7 @@ export class RecoveryAgent extends BaseAgent {
 
     if (success) {
       this.stats.rollbacksPerformed++;
-      this.log("info", `Rollback to checkpoint: ${payload.checkpointId}`);
+      this.logger("info", `Rollback to checkpoint: ${payload.checkpointId}`);
     }
 
     this.sendMessage({
@@ -1056,7 +1056,7 @@ export class RecoveryAgent extends BaseAgent {
 
       return patterns;
     } catch (error) {
-      this.log("error", "Failed to load patterns from KnowledgeBase", error);
+      this.logger("error", "Failed to load patterns from KnowledgeBase", error);
       return [];
     }
   }
@@ -1265,7 +1265,7 @@ export class RecoveryAgent extends BaseAgent {
             this.initialRetryDelay * Math.pow(this.backoffMultiplier, i),
             this.maxRetryDelay
           );
-          this.log("info", `Backoff retry ${i + 1}/${action.maxAttempts}, waiting ${delay}ms`);
+          this.logger("info", `Backoff retry ${i + 1}/${action.maxAttempts}, waiting ${delay}ms`);
           await this.delay(delay);
           this.emit("recovery:retry", { plan, action, attempt: i + 1 });
         }
@@ -1335,7 +1335,7 @@ export class RecoveryAgent extends BaseAgent {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
-  private log(
+  private logger(
     level: "debug" | "info" | "warn" | "error",
     message: string,
     meta?: unknown

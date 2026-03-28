@@ -10,7 +10,7 @@ export default defineConfig({
       '**/node_modules/**',
       '**/tier2.5-tui-test/**',  // @microsoft/tui-test spawns processes
       '**/tier3-integration/**', // node-pty tests spawn processes
-      '**/tier4-e2e/**',         // Full E2E spawns CLI
+      // '**/tier4-e2e/**',         // Full E2E spawns CLI - temporarily enabled for testing
     ],
     testTimeout: 30000,
     hookTimeout: 30000,

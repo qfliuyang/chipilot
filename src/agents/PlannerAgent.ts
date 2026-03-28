@@ -266,23 +266,42 @@ export class PlannerAgent extends BaseAgent {
    * @returns Execution plan with tasks and dependencies
    */
   async createPlan(goal: string, context?: PlanContext): Promise<ExecutionPlan> {
-    this.log("info", `Creating plan for goal: ${goal}`);
+    this.logger("info", `Creating plan for goal: ${goal}`);
+
+    // Record task started
+    this.recorder?.recordTaskStarted(this.id, `plan-create-${Date.now()}`, "plan_creation", {
+      goal,
+      context,
+    });
 
     const planId = this.generatePlanId();
     const tasks: Task[] = [];
     const dependencies = new Map<string, string[]>();
+
+    // Use LLM to analyze the goal and generate task strategy
+    let planStrategy: string;
+    try {
+      planStrategy = await this.processWithLLM(
+        `Analyze this EDA design goal and provide a brief strategy for achieving it:\n\nGoal: ${goal}\nTool: ${context?.tool || "innovus"}\n\nWhat are the key steps needed?`,
+        { cwd: context?.designContext }
+      );
+      this.logger("debug", "LLM plan strategy generated");
+    } catch (error) {
+      this.logger("warn", "LLM call failed, using rule-based planning:", error);
+      planStrategy = "Using rule-based task generation";
+    }
 
     // Try to retrieve workflow template from KnowledgeBase
     const workflowTemplate = await this.queryWorkflowTemplate(goal, context?.tool);
 
     if (workflowTemplate) {
       // Use template-based task generation
-      this.log("debug", `Using workflow template for: ${goal}`);
+      this.logger("debug", `Using workflow template for: ${goal}`);
       const templateTasks = this.generateTasksFromTemplate(workflowTemplate, context);
       tasks.push(...templateTasks);
     } else {
       // Generate tasks based on goal analysis
-      this.log("debug", `Generating tasks from goal analysis: ${goal}`);
+      this.logger("debug", `Generating tasks from goal analysis: ${goal}`);
       const generatedTasks = this.generateTasksFromGoal(goal, context);
       tasks.push(...generatedTasks);
     }
@@ -305,7 +324,10 @@ export class PlannerAgent extends BaseAgent {
     // Store plan
     this.activePlans.set(planId, plan);
 
-    this.log("info", `Created plan ${planId} with ${tasks.length} tasks`);
+    this.logger("info", `Created plan ${planId} with ${tasks.length} tasks`);
+
+    // Record task completed
+    this.recorder?.recordTaskCompleted(this.id, `plan-create-${Date.now()}`, { planId, taskCount: tasks.length });
 
     // Emit plan created event
     this.emit("planCreated", {
@@ -328,10 +350,19 @@ export class PlannerAgent extends BaseAgent {
    * @param plan - The execution plan to execute
    * @returns Result of plan execution
    */
-  async executePlan(plan: ExecutionPlan): Promise<PlanResult> {
+  public async executePlan(plan: ExecutionPlan): Promise<PlanResult> {
     const startTime = Date.now();
+    const taskId = `plan-execute-${Date.now()}`;
 
-    this.log("info", `Executing plan ${plan.id}: ${plan.goal}`);
+    this.logger("info", `Executing plan ${plan.id}: ${plan.goal}`);
+    this.logger("debug", `Plan has ${plan.tasks.length} tasks: ${plan.tasks.map(t => `${t.id}(${t.type},${t.status},deps:[${t.dependencies.join(',')}])`).join(', ')}`);
+
+    // Record task started
+    this.recorder?.recordTaskStarted(this.id, taskId, "plan_execution", {
+      planId: plan.id,
+      goal: plan.goal,
+      taskCount: plan.tasks.length,
+    });
 
     // Update plan status
     plan.status = "running";
@@ -345,17 +376,33 @@ export class PlannerAgent extends BaseAgent {
 
     try {
       // Execute tasks in dependency order
-      while (plan.currentTaskIndex < plan.tasks.length) {
+      // Keep looping until all tasks are completed or failed
+      let iterationCount = 0;
+      while (plan.tasks.some(t => t.status === "pending" || t.status === "running")) {
+        iterationCount++;
         const readyTasks = this.getReadyTasks(plan);
+        this.logger("debug", `Iteration ${iterationCount}: ${readyTasks.length} ready tasks, ${plan.tasks.filter(t => t.status === "pending").length} pending, ${plan.tasks.filter(t => t.status === "running").length} running, ${plan.tasks.filter(t => t.status === "completed").length} completed`);
+        if (readyTasks.length > 0) {
+          this.logger("debug", `Ready tasks: ${readyTasks.map(t => `${t.id}(${t.type})`).join(', ')}`);
+        }
 
         if (readyTasks.length === 0) {
           // Check for circular dependencies or stuck state
           if (this.hasRunningTasks(plan)) {
             // Wait for running tasks to complete
+            this.logger("debug", "No ready tasks but have running tasks, waiting...");
             await this.waitForTaskCompletion(plan, 1000);
             continue;
           } else {
-            throw new Error("Deadlock detected: no ready tasks and no running tasks");
+            // No ready tasks and no running tasks - check if we're done
+            const hasPendingTasks = plan.tasks.some(t => t.status === "pending");
+            if (!hasPendingTasks) {
+              // All tasks are completed or failed - exit loop
+              this.logger("debug", "No pending tasks remaining, exiting loop");
+              break;
+            }
+            this.logger("error", `Deadlock detected! Pending tasks: ${plan.tasks.filter(t => t.status === "pending").map(t => `${t.id}(${t.type},deps:[${t.dependencies.join(',')}])`).join(', ')}`);
+            throw new Error("Deadlock detected: no ready tasks and no running tasks, but pending tasks remain");
           }
         }
 
@@ -369,9 +416,11 @@ export class PlannerAgent extends BaseAgent {
           }
         }
 
-        // Move to next batch of tasks
-        plan.currentTaskIndex++;
+        // Wait a bit for tasks to start running before checking again
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
+
+      this.logger("debug", `Plan execution loop completed after ${iterationCount} iterations`);
 
       // Plan completed successfully
       plan.status = "completed";
@@ -387,7 +436,10 @@ export class PlannerAgent extends BaseAgent {
       this.completedPlans.set(plan.id, result);
       this.activePlans.delete(plan.id);
 
-      this.log("info", `Plan ${plan.id} completed successfully in ${result.duration}ms`);
+      this.logger("info", `Plan ${plan.id} completed successfully in ${result.duration}ms`);
+
+      // Record task completed
+      this.recorder?.recordTaskCompleted(this.id, taskId, { planId: plan.id, success: true }, result.duration);
 
       this.emit("planCompleted", {
         agentId: this.id,
@@ -413,7 +465,10 @@ export class PlannerAgent extends BaseAgent {
 
       this.completedPlans.set(plan.id, result);
 
-      this.log("error", `Plan ${plan.id} failed: ${plan.error}`);
+      this.logger("error", `Plan ${plan.id} failed: ${plan.error}`);
+
+      // Record task failed
+      this.recorder?.recordTaskFailed(this.id, taskId, plan.error);
 
       this.emit("planFailed", {
         agentId: this.id,
@@ -441,7 +496,7 @@ export class PlannerAgent extends BaseAgent {
    * @returns Recovery action to take
    */
   async handleTaskFailure(taskId: string, error: Error): Promise<RecoveryAction> {
-    this.log("info", `Handling failure for task ${taskId}: ${error.message}`);
+    this.logger("info", `Handling failure for task ${taskId}: ${error.message}`);
 
     // Find the task in active plans
     let task: Task | undefined;
@@ -558,7 +613,7 @@ export class PlannerAgent extends BaseAgent {
       timestamp: Date.now(),
     });
 
-    this.log("info", `Plan ${planId} cancelled`);
+    this.logger("info", `Plan ${planId} cancelled`);
 
     return true;
   }
@@ -594,7 +649,7 @@ export class PlannerAgent extends BaseAgent {
    * @param message - The message to handle
    */
   async handleMessage(message: AgentMessage): Promise<void> {
-    this.log("debug", `Received message: ${message.type} from ${message.sender}`);
+    this.logger("debug", `Received message: ${message.type} from ${message.sender}`);
 
     switch (message.type) {
       case "task.complete":
@@ -622,7 +677,7 @@ export class PlannerAgent extends BaseAgent {
         break;
 
       default:
-        this.log("debug", `Unhandled message type: ${message.type}`);
+        this.logger("debug", `Unhandled message type: ${message.type}`);
     }
   }
 
@@ -630,7 +685,7 @@ export class PlannerAgent extends BaseAgent {
    * Lifecycle hook called during initialization.
    */
   protected async onInitialize(): Promise<void> {
-    this.log("info", "PlannerAgent initializing");
+    this.logger("info", "PlannerAgent initializing");
 
     // Register with MessageBus
     this.messageBus.registerAgent("planner" as AgentId, async (message) => {
@@ -662,7 +717,7 @@ export class PlannerAgent extends BaseAgent {
         correlationId: message.correlationId,
       };
       this.messageBus.send(busMessage).catch((err) => {
-        this.log("error", "Failed to send message via MessageBus:", err);
+        this.logger("error", "Failed to send message via MessageBus:", err);
       });
     });
 
@@ -688,28 +743,28 @@ export class PlannerAgent extends BaseAgent {
    * Lifecycle hook called when starting.
    */
   protected async onStart(): Promise<void> {
-    this.log("info", "PlannerAgent started");
+    this.logger("info", "PlannerAgent started");
   }
 
   /**
    * Lifecycle hook called when pausing.
    */
   protected async onPause(): Promise<void> {
-    this.log("info", "PlannerAgent paused");
+    this.logger("info", "PlannerAgent paused");
   }
 
   /**
    * Lifecycle hook called when resuming.
    */
   protected async onResume(): Promise<void> {
-    this.log("info", "PlannerAgent resumed");
+    this.logger("info", "PlannerAgent resumed");
   }
 
   /**
    * Lifecycle hook called when stopping.
    */
   protected async onStop(): Promise<void> {
-    this.log("info", "PlannerAgent stopping");
+    this.logger("info", "PlannerAgent stopping");
 
     // Cancel all active plans
     for (const plan of Array.from(this.activePlans.values())) {
@@ -723,7 +778,7 @@ export class PlannerAgent extends BaseAgent {
    * Lifecycle hook called during cleanup.
    */
   protected async onCleanup(): Promise<void> {
-    this.log("info", "PlannerAgent cleaning up");
+    this.logger("info", "PlannerAgent cleaning up");
 
     // Unsubscribe from MessageBus
     if (this.messageSubscription) {
@@ -758,7 +813,7 @@ export class PlannerAgent extends BaseAgent {
         return results[0];
       }
     } catch (error) {
-      this.log("warn", "Failed to query workflow template:", error);
+      this.logger("warn", "Failed to query workflow template:", error);
     }
 
     return null;
@@ -943,13 +998,21 @@ export class PlannerAgent extends BaseAgent {
       plan.tasks.filter((t) => t.status === "completed").map((t) => t.id)
     );
 
-    return plan.tasks.filter((task) => {
+    this.logger("debug", `getReadyTasks: ${plan.tasks.length} total tasks, ${completedTaskIds.size} completed`);
+    this.logger("debug", `Dependency map has ${plan.dependencies.size} entries`);
+
+    const ready = plan.tasks.filter((task) => {
       if (task.status !== "pending") return false;
 
       // Check if all dependencies are completed
       const deps = plan.dependencies.get(task.id) || [];
-      return deps.every((depId) => completedTaskIds.has(depId));
+      const allDepsCompleted = deps.every((depId) => completedTaskIds.has(depId));
+      this.logger("debug", `Task ${task.id}(${task.type}): status=${task.status}, deps=[${deps.join(',')}], allDepsCompleted=${allDepsCompleted}`);
+      return allDepsCompleted;
     });
+
+    this.logger("debug", `getReadyTasks returning ${ready.length} ready tasks`);
+    return ready;
   }
 
   /**
@@ -985,7 +1048,7 @@ export class PlannerAgent extends BaseAgent {
     task.status = "running";
     task.startedAt = Date.now();
 
-    this.log("debug", `Executing task ${task.id}: ${task.description}`);
+    this.logger("debug", `Executing task ${task.id}: ${task.description}`);
 
     // Determine target agent based on task type
     const targetAgent = this.getTargetAgentForTask(task);
@@ -1041,7 +1104,7 @@ export class PlannerAgent extends BaseAgent {
    * Execute multiple tasks in parallel.
    */
   private async executeTasksParallel(plan: ExecutionPlan, tasks: Task[]): Promise<void> {
-    this.log("debug", `Executing ${tasks.length} tasks in parallel`);
+    this.logger("debug", `Executing ${tasks.length} tasks in parallel`);
 
     const promises = tasks.map((task) => this.executeTask(plan, task));
     await Promise.all(promises);
@@ -1336,7 +1399,7 @@ export class PlannerAgent extends BaseAgent {
   /**
    * Log debug messages if debug mode is enabled.
    */
-  private log(level: "debug" | "info" | "warn" | "error", ...args: unknown[]): void {
+  private logger(level: "debug" | "info" | "warn" | "error", ...args: unknown[]): void {
     if (!this.debug && level === "debug") return;
 
     const timestamp = new Date().toISOString();

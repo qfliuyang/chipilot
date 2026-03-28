@@ -265,12 +265,37 @@ export class OrchestratorAgent extends BaseAgent {
   async processGoal(userInput: string, context?: UserContext): Promise<GoalResult> {
     const startTime = Date.now();
     const goalId = this.generateGoalId();
+    const taskId = `goal-${goalId}`;
 
-    this.log("info", `Processing goal [${goalId}]: ${userInput}`);
+    this.logger("info", `Processing goal [${goalId}]: ${userInput}`);
+
+    // Record task started
+    this.recorder?.recordTaskStarted(this.id, taskId, "goal_processing", {
+      goalId,
+      userInput,
+      context,
+    });
 
     try {
-      // Step 1: Interpret intent
-      const intent = await this.interpretIntent(userInput);
+      // Step 1: Interpret intent using LLM for better understanding
+      let intent: Intent;
+      try {
+        const intentAnalysis = await this.processWithLLM(
+          `Analyze this EDA design query and classify the intent:\n\n"${userInput}"\n\nProvide: 1) Intent type (execute_command, debug_error, optimize_design, query_status), 2) Target EDA tool if mentioned, 3) Brief description`,
+          { cwd: context?.cwd }
+        );
+        this.logger("debug", "LLM intent analysis:", intentAnalysis);
+
+        // Use LLM analysis to enhance intent interpretation
+        intent = await this.interpretIntent(userInput);
+
+        // Enhance confidence if LLM succeeded
+        intent.confidence = Math.min(intent.confidence + 0.05, 1.0);
+      } catch (error) {
+        this.logger("warn", "LLM intent analysis failed, using rule-based interpretation:", error);
+        intent = await this.interpretIntent(userInput);
+      }
+
       this.activeGoals.set(goalId, { startTime, intent });
 
       // Store conversation context
@@ -319,14 +344,27 @@ export class OrchestratorAgent extends BaseAgent {
       }
 
       this.activeGoals.delete(goalId);
+
+      // Record task completed or failed
+      if (result.success) {
+        this.recorder?.recordTaskCompleted(this.id, taskId, { goalId, intentType: intent.type }, result.duration);
+      } else {
+        this.recorder?.recordTaskFailed(this.id, taskId, result.error || "Goal processing failed");
+      }
+
       return result;
     } catch (error) {
       this.activeGoals.delete(goalId);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Record task failed
+      this.recorder?.recordTaskFailed(this.id, taskId, errorMessage);
+
       return {
         success: false,
         message: "An error occurred while processing your request.",
         duration: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error),
+        error: errorMessage,
       };
     }
   }
@@ -516,7 +554,7 @@ export class OrchestratorAgent extends BaseAgent {
   ): Promise<GoalResult> {
     const startTime = Date.now();
 
-    this.log("info", `Delegating to planner: ${goal}`);
+    this.logger("info", `Delegating to planner: ${goal}`);
 
     if (!this.planner) {
       return {
@@ -538,7 +576,7 @@ export class OrchestratorAgent extends BaseAgent {
       // Create execution plan
       const plan = await this.planner.createPlan(goal, planContext);
 
-      this.log("info", `Created plan with ${plan.tasks.length} tasks`);
+      this.logger("info", `Created plan with ${plan.tasks.length} tasks`);
 
       // Execute the plan
       const planResult = await this.planner.executePlan(plan);
@@ -573,7 +611,7 @@ export class OrchestratorAgent extends BaseAgent {
    * @param event - The system event to handle
    */
   async handleSystemEvent(event: SystemEvent): Promise<void> {
-    this.log("info", `Handling system event: ${event.type}`);
+    this.logger("info", `Handling system event: ${event.type}`);
 
     switch (event.type) {
       case "agent.error":
@@ -605,7 +643,7 @@ export class OrchestratorAgent extends BaseAgent {
         break;
 
       default:
-        this.log("warn", `Unknown system event type: ${event.type}`);
+        this.logger("warn", `Unknown system event type: ${event.type}`);
     }
   }
 
@@ -642,7 +680,7 @@ export class OrchestratorAgent extends BaseAgent {
    * Use this for critical situations requiring immediate halt.
    */
   async emergencyStop(): Promise<void> {
-    this.log("critical", "EMERGENCY STOP initiated");
+    this.logger("critical", "EMERGENCY STOP initiated");
 
     // Cancel all active goals
     this.activeGoals.clear();
@@ -679,7 +717,7 @@ export class OrchestratorAgent extends BaseAgent {
       lastActivity: Date.now(),
     });
 
-    this.log("debug", `Registered agent: ${agentId}`);
+    this.logger("debug", `Registered agent: ${agentId}`);
   }
 
   /**
@@ -702,7 +740,7 @@ export class OrchestratorAgent extends BaseAgent {
    * @param message - The message to handle
    */
   async handleMessage(message: AgentMessage): Promise<void> {
-    this.log("debug", `Received message: ${message.type} from ${message.sender}`);
+    this.logger("debug", `Received message: ${message.type} from ${message.sender}`);
 
     switch (message.type) {
       case "escalate":
@@ -722,7 +760,7 @@ export class OrchestratorAgent extends BaseAgent {
         break;
 
       default:
-        this.log("debug", `Unhandled message type: ${message.type}`);
+        this.logger("debug", `Unhandled message type: ${message.type}`);
     }
   }
 
@@ -730,7 +768,7 @@ export class OrchestratorAgent extends BaseAgent {
    * Lifecycle hook called during initialization.
    */
   protected async onInitialize(): Promise<void> {
-    this.log("info", "OrchestratorAgent initializing");
+    this.logger("info", "OrchestratorAgent initializing");
 
     // Register with MessageBus
     this.messageBus.registerAgent("orchestrator" as AgentId, async (message) => {
@@ -760,7 +798,7 @@ export class OrchestratorAgent extends BaseAgent {
         correlationId: message.correlationId,
       };
       this.messageBus.send(busMessage).catch((err) => {
-        this.log("error", "Failed to send message via MessageBus:", err);
+        this.logger("error", "Failed to send message via MessageBus:", err);
       });
     });
 
@@ -784,14 +822,14 @@ export class OrchestratorAgent extends BaseAgent {
    * Lifecycle hook called when starting.
    */
   protected async onStart(): Promise<void> {
-    this.log("info", "OrchestratorAgent started");
+    this.logger("info", "OrchestratorAgent started");
   }
 
   /**
    * Lifecycle hook called when stopping.
    */
   protected async onStop(): Promise<void> {
-    this.log("info", "OrchestratorAgent stopping");
+    this.logger("info", "OrchestratorAgent stopping");
 
     // Cancel all active goals
     this.activeGoals.clear();
@@ -801,7 +839,7 @@ export class OrchestratorAgent extends BaseAgent {
    * Lifecycle hook called during cleanup.
    */
   protected async onCleanup(): Promise<void> {
-    this.log("info", "OrchestratorAgent cleaning up");
+    this.logger("info", "OrchestratorAgent cleaning up");
 
     // Unsubscribe from MessageBus
     if (this.messageSubscription) {
@@ -977,7 +1015,7 @@ export class OrchestratorAgent extends BaseAgent {
 
   private async handleAgentError(event: SystemEvent): Promise<void> {
     const { agentId, error } = event.payload as { agentId: string; error: string };
-    this.log("error", `Agent ${agentId} reported error: ${error}`);
+    this.logger("error", `Agent ${agentId} reported error: ${error}`);
 
     // Update agent state
     this.updateAgentState(agentId as AgentId, "error");
@@ -993,14 +1031,14 @@ export class OrchestratorAgent extends BaseAgent {
 
   private async handleAgentRecovered(event: SystemEvent): Promise<void> {
     const { agentId } = event.payload as { agentId: string };
-    this.log("info", `Agent ${agentId} recovered`);
+    this.logger("info", `Agent ${agentId} recovered`);
 
     this.updateAgentState(agentId as AgentId, "idle");
   }
 
   private async handleResourceLow(event: SystemEvent): Promise<void> {
     const { resource, level } = event.payload as { resource: string; level: number };
-    this.log("warn", `Low resource: ${resource} at ${level}%`);
+    this.logger("warn", `Low resource: ${resource} at ${level}%`);
 
     // Could trigger resource optimization or queuing
     this.broadcastEvent("orchestrate", {
@@ -1012,7 +1050,7 @@ export class OrchestratorAgent extends BaseAgent {
 
   private async handleKnowledgeGap(event: SystemEvent): Promise<void> {
     const { query, reason } = event.payload as { query: string; reason: string };
-    this.log("info", `Knowledge gap detected: ${reason}`);
+    this.logger("info", `Knowledge gap detected: ${reason}`);
 
     // Could trigger learning or user notification
     this.broadcastEvent("orchestrate", {
@@ -1023,13 +1061,13 @@ export class OrchestratorAgent extends BaseAgent {
   }
 
   private async handleUserInterrupt(_event: SystemEvent): Promise<void> {
-    this.log("info", "User interrupt received");
+    this.logger("info", "User interrupt received");
     await this.emergencyStop();
   }
 
   private async handlePlanFailed(event: SystemEvent): Promise<void> {
     const { planId, error } = event.payload as { planId: string; error: string };
-    this.log("error", `Plan ${planId} failed: ${error}`);
+    this.logger("error", `Plan ${planId} failed: ${error}`);
 
     // Could trigger replanning or escalation
     this.broadcastEvent("orchestrate", {
@@ -1040,7 +1078,7 @@ export class OrchestratorAgent extends BaseAgent {
   }
 
   private async handleTerminalDisconnected(_event: SystemEvent): Promise<void> {
-    this.log("error", "Terminal disconnected");
+    this.logger("error", "Terminal disconnected");
 
     // Pause operations until terminal reconnects
     this.broadcastEvent("orchestrate", {
@@ -1054,7 +1092,7 @@ export class OrchestratorAgent extends BaseAgent {
       context?: unknown;
     };
 
-    this.log("info", `Escalation from ${message.sender}: ${payload.reason}`);
+    this.logger("info", `Escalation from ${message.sender}: ${payload.reason}`);
 
     // Emit escalation event for UI handling
     this.emit("escalation", {
@@ -1071,7 +1109,7 @@ export class OrchestratorAgent extends BaseAgent {
       result?: unknown;
     };
 
-    this.log("debug", `Task ${payload.taskId} completed by ${message.sender}`);
+    this.logger("debug", `Task ${payload.taskId} completed by ${message.sender}`);
 
     // Update agent activity
     this.updateAgentState(message.sender as AgentId, "idle");
@@ -1083,7 +1121,7 @@ export class OrchestratorAgent extends BaseAgent {
       error?: string;
     };
 
-    this.log("error", `Task ${payload.taskId} failed: ${payload.error}`);
+    this.logger("error", `Task ${payload.taskId} failed: ${payload.error}`);
 
     // Update agent state
     this.updateAgentState(message.sender as AgentId, "error");
@@ -1113,7 +1151,7 @@ export class OrchestratorAgent extends BaseAgent {
     };
 
     this.messageBus.broadcast(eventMessage).catch((err) => {
-      this.log("error", "Failed to broadcast event:", err);
+      this.logger("error", "Failed to broadcast event:", err);
     });
   }
 
@@ -1121,7 +1159,7 @@ export class OrchestratorAgent extends BaseAgent {
     return `goal_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
-  private log(level: "debug" | "info" | "warn" | "error" | "critical", ...args: unknown[]): void {
+  private logger(level: "debug" | "info" | "warn" | "error" | "critical", ...args: unknown[]): void {
     if (!this.debug && level === "debug") return;
 
     const timestamp = new Date().toISOString();

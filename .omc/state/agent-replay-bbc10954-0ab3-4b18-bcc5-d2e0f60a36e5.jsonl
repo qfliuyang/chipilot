@@ -125,3 +125,13 @@
 {"t":0,"agent":"a426498","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":171984}
 {"t":0,"agent":"a34985e","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":279765}
 {"t":0,"agent":"a13e3ae","agent_type":"executor","event":"agent_stop","success":true,"duration_ms":1597987}
+{"t":0,"agent":"a70eb17","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a7fa880","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a0acbbc","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a134120","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"system","event":"skill_invoked","skill_name":"oh-my-claudecode:build-fix"}
+{"t":0,"agent":"a3cf3d8","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a3470c1","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"ab0d807","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"a719102","agent_type":"unknown","event":"agent_stop","success":true}
+{"t":0,"agent":"af697af","agent_type":"unknown","event":"agent_stop","success":true}
