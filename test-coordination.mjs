@@ -376,14 +376,32 @@ async function runTest() {
       pineconeIndex: process.env.PINECONE_INDEX || "chipilot",
     });
 
-    // Create agents with telemetry hooks
+    // Create agents with telemetry hooks and API configuration
     const agents = {};
+
+    // API configuration from environment
+    const apiConfig = {
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      baseURL: process.env.ANTHROPIC_BASE_URL,
+      model: process.env.CHIPILOT_MODEL,
+    };
+
+    // Create AgentRecorder for tracking LLM calls and token usage
+    const { AgentRecorder } = await import("./dist/index.js");
+    const recorder = new AgentRecorder({
+      outputDir: outputDir,
+      sessionName: `coordination-test-${timestamp}`,
+      consoleLog: true,
+    });
+    recorder.startRecording();
 
     agents.planner = new PlannerAgent({
       id: "planner",
       name: "Planner",
       debug: true,
       messageBus,
+      recorder,
+      ...apiConfig,
     });
 
     agents.orchestrator = new OrchestratorAgent({
@@ -392,6 +410,8 @@ async function runTest() {
       planner: agents.planner,
       debug: true,
       messageBus,
+      recorder,
+      ...apiConfig,
     });
 
     agents.terminalPerception = new TerminalPerceptionAgent({
@@ -399,12 +419,15 @@ async function runTest() {
       name: "Terminal Perception",
       debug: true,
       messageBus,
+      ...apiConfig,
     });
 
     agents.execution = new ExecutionAgent({
       id: "execution",
       name: "Execution",
       messageBus,
+      recorder,
+      ...apiConfig,
     });
 
     agents.commandSynthesis = new CommandSynthesisAgent({
@@ -412,6 +435,8 @@ async function runTest() {
       name: "Command Synthesis",
       knowledgeBase,
       messageBus,
+      recorder,
+      ...apiConfig,
     });
 
     agents.knowledgeCurator = new KnowledgeCuratorAgent({
@@ -419,6 +444,8 @@ async function runTest() {
       name: "Knowledge Curator",
       knowledgeBase,
       messageBus,
+      recorder,
+      ...apiConfig,
     });
 
     agents.verification = new VerificationAgent({
@@ -426,6 +453,8 @@ async function runTest() {
       name: "Verification",
       knowledgeBase,
       messageBus,
+      recorder,
+      ...apiConfig,
     });
 
     // Hook up telemetry for all agents

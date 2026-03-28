@@ -70,6 +70,12 @@ export interface BaseAgentOptions {
 
   /** Optional AgentRecorder for activity logging */
   recorder?: AgentRecorder;
+
+  /** Optional API key for LLM calls */
+  apiKey?: string;
+
+  /** Optional base URL for LLM API */
+  baseURL?: string;
 }
 
 /**
@@ -116,6 +122,12 @@ export abstract class BaseAgent extends EventEmitter {
   /** LLM agent for making real LLM calls */
   private llmAgent?: Agent;
 
+  /** API key for LLM calls */
+  protected apiKey?: string;
+
+  /** Base URL for LLM API */
+  protected baseURL?: string;
+
   /**
    * Process a task with LLM reasoning.
    *
@@ -139,6 +151,9 @@ export abstract class BaseAgent extends EventEmitter {
 You help with physical design tasks using tools like Cadence Innovus, Genus, and Tempus.
 Be concise and practical in your responses.`,
         recorder: this.recorder,
+        agentId: this.id,
+        apiKey: this.apiKey,
+        baseURL: this.baseURL,
       });
     }
 
@@ -190,6 +205,8 @@ Be concise and practical in your responses.`,
     this._state = options.initialState ?? "idle";
     this._lastStateChange = Date.now();
     this.recorder = options.recorder;
+    this.apiKey = options.apiKey;
+    this.baseURL = options.baseURL;
 
     // Set up event emitter to handle more listeners for high-throughput agents
     this.setMaxListeners(50);
