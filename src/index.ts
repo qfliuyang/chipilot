@@ -1,6 +1,9 @@
 // chipilot-cli - Agentic EDA Design Platform
 // Main entry point for library usage
 
+// Import polyfill FIRST before any modules that may load xterm
+import "./terminal/xterm-polyfill.js";
+
 // Agent system
 export * from "./agents/index.js";
 

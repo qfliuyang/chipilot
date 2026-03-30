@@ -129,7 +129,6 @@ export interface CommandSynthesisOptions extends BaseAgentOptions {
  */
 export class CommandSynthesisAgent extends BaseAgent {
   private knowledgeBase: KnowledgeBase;
-  private messageBus?: MessageBus;
   private verificationThreshold: number;
   private maxAlternatives: number;
 
@@ -614,24 +613,6 @@ Command:`,
           correlationId: message.correlationId,
         };
         await this.receiveMessage(convertedMessage);
-      });
-
-      // Set up event forwarding from BaseAgent to MessageBus
-      this.on("sendMessage", (message: AgentMessage) => {
-        // Convert BaseAgent format to MessageBus format
-        const busMessage: BusAgentMessage = {
-          id: message.id,
-          from: message.sender as AgentId,
-          to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
-          type: message.type as import("./MessageBus").MessageType,
-          payload: message.payload,
-          timestamp: message.timestamp,
-          priority: message.priority ?? "normal",
-          correlationId: message.correlationId,
-        };
-        this.messageBus!.send(busMessage).catch((err) => {
-          console.error("[CommandSynthesisAgent] Failed to send message via MessageBus:", err);
-        });
       });
     }
   }

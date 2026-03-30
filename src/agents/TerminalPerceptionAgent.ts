@@ -140,7 +140,6 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; type: ErrorDetectedEvent["errorTy
 export class TerminalPerceptionAgent extends BaseAgent {
   private terminalSession?: TerminalSession;
   private virtualTerminal?: VirtualTerminal;
-  private messageBus: MessageBus;
   private bufferSize: number;
   private debug: boolean;
 
@@ -500,7 +499,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
     this.logger("info", "TerminalPerceptionAgent initializing");
 
     // Register with MessageBus
-    this.messageBus.registerAgent("terminal-perception" as AgentId, async (message) => {
+    this.messageBus?.registerAgent("terminal-perception" as AgentId, async (message) => {
       // Convert MessageBus format to BaseAgent format
       const convertedMessage: BaseAgentMessage = {
         id: message.id,
@@ -513,24 +512,6 @@ export class TerminalPerceptionAgent extends BaseAgent {
         correlationId: message.correlationId,
       };
       await this.receiveMessage(convertedMessage);
-    });
-
-    // Set up event forwarding from BaseAgent to MessageBus
-    this.on("sendMessage", (message: BaseAgentMessage) => {
-      // Convert BaseAgent format to MessageBus format
-      const busMessage: BusAgentMessage = {
-        id: message.id,
-        from: message.sender as AgentId,
-        to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
-        type: message.type as import("./MessageBus").MessageType,
-        payload: message.payload,
-        timestamp: message.timestamp,
-        priority: message.priority ?? "normal",
-        correlationId: message.correlationId,
-      };
-      this.messageBus.send(busMessage).catch((err) => {
-        this.logger("error", "Failed to send message via MessageBus:", err);
-      });
     });
   }
 
@@ -570,7 +551,7 @@ export class TerminalPerceptionAgent extends BaseAgent {
     this.logger("info", "TerminalPerceptionAgent cleaning up");
 
     // Unregister from MessageBus
-    this.messageBus.unregisterAgent("terminal-perception" as AgentId);
+    this.messageBus?.unregisterAgent("terminal-perception" as AgentId);
 
     // Clear buffers
     this.outputBuffer = "";
@@ -671,8 +652,23 @@ export class TerminalPerceptionAgent extends BaseAgent {
       priority: "normal",
     };
 
+    // Record message sent via AgentRecorder (bypasses BaseAgent.sendMessage)
+    this.recorder?.recordMessageSent(
+      this.id,
+      {
+        id: eventMessage.id,
+        from: eventMessage.from,
+        to: eventMessage.to,
+        type: eventMessage.type,
+        payload: eventMessage.payload,
+        timestamp: eventMessage.timestamp,
+        priority: eventMessage.priority,
+        correlationId: eventMessage.correlationId,
+      }
+    );
+
     this.messageBus
-      .broadcast(eventMessage)
+      ?.broadcast(eventMessage)
       .catch((err) => {
         this.logger("error", "Failed to broadcast event:", err);
       });

@@ -76,6 +76,9 @@ export interface BaseAgentOptions {
 
   /** Optional base URL for LLM API */
   baseURL?: string;
+
+  /** Optional MessageBus for direct message dispatch */
+  messageBus?: import("./MessageBus").MessageBus;
 }
 
 /**
@@ -128,6 +131,9 @@ export abstract class BaseAgent extends EventEmitter {
   /** Base URL for LLM API */
   protected baseURL?: string;
 
+  /** Optional MessageBus for direct message dispatch */
+  protected messageBus?: import("./MessageBus").MessageBus;
+
   /**
    * Process a task with LLM reasoning.
    *
@@ -150,16 +156,14 @@ export abstract class BaseAgent extends EventEmitter {
         systemPrompt: `You are ${this.name} (${this.id}) in a multi-agent system for EDA tool automation.
 You help with physical design tasks using tools like Cadence Innovus, Genus, and Tempus.
 Be concise and practical in your responses.`,
-        recorder: this.recorder,
+        // Don't pass recorder here - Agent.chatAnthropic handles its own recording
+        // to avoid duplicate recordings when BaseAgent also records
+        recorder: undefined,
         agentId: this.id,
         apiKey: this.apiKey,
         baseURL: this.baseURL,
       });
     }
-
-    // Record LLM call start with actual model name
-    const modelName = process.env.CHIPILOT_MODEL || "claude-sonnet-4-6-20250514";
-    this.recorder?.recordLLMCall(this.id, prompt, modelName);
 
     const startTime = Date.now();
 
@@ -171,10 +175,12 @@ Be concise and practical in your responses.`,
 
       const duration = Date.now() - startTime;
 
-      // Record LLM response with token estimation
+      // Record LLM call and response here in BaseAgent only
+      // (since we don't pass recorder to Agent anymore)
       const outputTokens = this.recorder?.estimateTokens(response.message) || 0;
       const inputTokens = this.recorder?.estimateTokens(prompt) || 0;
 
+      this.recorder?.recordLLMCall(this.id, prompt, process.env.CHIPILOT_MODEL || "claude-sonnet-4-6-20250514");
       this.recorder?.recordLLMResponse(
         this.id,
         response.message,
@@ -207,6 +213,7 @@ Be concise and practical in your responses.`,
     this.recorder = options.recorder;
     this.apiKey = options.apiKey;
     this.baseURL = options.baseURL;
+    this.messageBus = options.messageBus;
 
     // Set up event emitter to handle more listeners for high-throughput agents
     this.setMaxListeners(50);
@@ -418,7 +425,39 @@ Be concise and practical in your responses.`,
       priority: message.priority ?? "normal",
     };
 
-    // Emit event for MessageBus integration
+    // Record message sent in AgentRecorder (transform to MessageBus format)
+    this.recorder?.recordMessageSent(
+      this.id,
+      {
+        id: fullMessage.id,
+        from: fullMessage.sender as import("./MessageBus").AgentId,
+        to: fullMessage.recipient === "broadcast" ? "broadcast" : (fullMessage.recipient as import("./MessageBus").AgentId),
+        type: fullMessage.type as import("./MessageBus").MessageType,
+        payload: fullMessage.payload,
+        timestamp: fullMessage.timestamp,
+        priority: fullMessage.priority ?? "normal",
+        correlationId: fullMessage.correlationId,
+      }
+    );
+
+    // Dispatch to MessageBus if available, otherwise emit event for backwards compatibility
+    if (this.messageBus) {
+      const busMessage: import("./MessageBus").AgentMessage = {
+        id: fullMessage.id,
+        from: fullMessage.sender as import("./MessageBus").AgentId,
+        to: fullMessage.recipient === "broadcast" ? "broadcast" : (fullMessage.recipient as import("./MessageBus").AgentId),
+        type: fullMessage.type as import("./MessageBus").MessageType,
+        payload: fullMessage.payload,
+        timestamp: fullMessage.timestamp,
+        priority: fullMessage.priority ?? "normal",
+        correlationId: fullMessage.correlationId,
+      };
+      this.messageBus.send(busMessage).catch((err: Error) => {
+        this.log("error", "Failed to send message via MessageBus:", err.message);
+      });
+    }
+
+    // Emit event for backwards compatibility and for any external listeners
     this.emit("sendMessage", fullMessage);
   }
 
@@ -442,6 +481,21 @@ Be concise and practical in your responses.`,
     if (!message.id || !message.type || !message.sender) {
       throw new Error("Invalid message format: missing required fields");
     }
+
+    // Record message received in AgentRecorder (transform to MessageBus format)
+    this.recorder?.recordMessageReceived(
+      this.id,
+      {
+        id: message.id,
+        from: message.sender as import("./MessageBus").AgentId,
+        to: this.id as import("./MessageBus").AgentId,
+        type: message.type as import("./MessageBus").MessageType,
+        payload: message.payload,
+        timestamp: message.timestamp,
+        priority: message.priority ?? "normal",
+        correlationId: message.correlationId,
+      }
+    );
 
     try {
       await this.handleMessage(message);

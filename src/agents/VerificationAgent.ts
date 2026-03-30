@@ -163,7 +163,6 @@ export class VerificationAgent extends BaseAgent {
   private knowledgeBase: KnowledgeBase;
   private requireConfirmationForMediumRisk: boolean;
   private riskPatterns: RiskPattern[];
-  private messageBus?: import("./MessageBus").MessageBus;
 
   /**
    * Default risk patterns for command analysis
@@ -334,24 +333,6 @@ export class VerificationAgent extends BaseAgent {
           correlationId: message.correlationId,
         };
         await this.receiveMessage(convertedMessage);
-      });
-
-      // Set up event forwarding from BaseAgent to MessageBus
-      this.on("sendMessage", (message: AgentMessage) => {
-        // Convert BaseAgent format to MessageBus format
-        const busMessage: BusAgentMessage = {
-          id: message.id,
-          from: message.sender as AgentId,
-          to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
-          type: message.type as import("./MessageBus").MessageType,
-          payload: message.payload,
-          timestamp: message.timestamp,
-          priority: message.priority ?? "normal",
-          correlationId: message.correlationId,
-        };
-        this.messageBus!.send(busMessage).catch((err) => {
-          console.error("[VerificationAgent] Failed to send message via MessageBus:", err);
-        });
       });
     }
 

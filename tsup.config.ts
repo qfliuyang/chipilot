@@ -1,7 +1,12 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ["src/index.ts", "src/cli.ts", "src/testing/MockDetectionEngine.ts"],
+  entry: [
+    "src/index.ts",
+    "src/cli.ts",
+    "src/testing/MockDetectionEngine.ts",
+    "src/terminal/xterm-polyfill.ts",
+  ],
   format: ["esm"],
   platform: "node",
   target: "node20",

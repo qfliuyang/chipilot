@@ -229,7 +229,6 @@ export interface PlannerAgentOptions extends BaseAgentOptions {
  * const result = await planner.executePlan(plan);
  */
 export class PlannerAgent extends BaseAgent {
-  private messageBus: MessageBus;
   private knowledgeBase?: KnowledgeBase;
   private defaultTaskTimeout: number;
   private defaultMaxRetries: number;
@@ -296,7 +295,7 @@ export class PlannerAgent extends BaseAgent {
     } else {
       // Generate tasks based on goal analysis
       this.logger("debug", `Generating tasks from goal analysis: ${goal}`);
-      const generatedTasks = this.generateTasksFromGoal(goal, context);
+      const generatedTasks = await this.generateTasksFromGoal(goal, context);
       tasks.push(...generatedTasks);
     }
 
@@ -682,7 +681,7 @@ export class PlannerAgent extends BaseAgent {
     this.logger("info", "PlannerAgent initializing");
 
     // Register with MessageBus
-    this.messageBus.registerAgent("planner" as AgentId, async (message) => {
+    this.messageBus?.registerAgent("planner" as AgentId, async (message) => {
       // Convert MessageBus format to BaseAgent format
       const convertedMessage: AgentMessage = {
         id: message.id,
@@ -697,26 +696,8 @@ export class PlannerAgent extends BaseAgent {
       await this.receiveMessage(convertedMessage);
     });
 
-    // Set up event forwarding from BaseAgent to MessageBus
-    this.on("sendMessage", (message: AgentMessage) => {
-      // Convert BaseAgent format to MessageBus format
-      const busMessage: BusAgentMessage = {
-        id: message.id,
-        from: message.sender as AgentId,
-        to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
-        type: message.type as import("./MessageBus").MessageType,
-        payload: message.payload,
-        timestamp: message.timestamp,
-        priority: message.priority ?? "normal",
-        correlationId: message.correlationId,
-      };
-      this.messageBus.send(busMessage).catch((err) => {
-        this.logger("error", "Failed to send message via MessageBus:", err);
-      });
-    });
-
     // Subscribe to task completion events
-    this.messageSubscription = this.messageBus.subscribe("task.*", async (message) => {
+    this.messageSubscription = this.messageBus?.subscribe("task.*", async (message) => {
       if (message.to === "planner" || message.to === "broadcast") {
         const convertedMessage: AgentMessage = {
           id: message.id,
@@ -776,11 +757,11 @@ export class PlannerAgent extends BaseAgent {
 
     // Unsubscribe from MessageBus
     if (this.messageSubscription) {
-      this.messageBus.unsubscribe(this.messageSubscription);
+      this.messageBus?.unsubscribe(this.messageSubscription);
     }
 
     // Unregister from MessageBus
-    this.messageBus.unregisterAgent("planner" as AgentId);
+    this.messageBus?.unregisterAgent("planner" as AgentId);
 
     // Clear plan tracking
     this.activePlans.clear();
@@ -843,121 +824,98 @@ export class PlannerAgent extends BaseAgent {
   }
 
   /**
-   * Generate tasks by analyzing the goal.
+   * Generate tasks by analyzing the goal using LLM.
+   *
+   * FAIL-FAST: This method MUST call the LLM to generate tasks. If LLM is
+   * unavailable, it throws an error. NO rule-based fallbacks allowed.
    */
-  private generateTasksFromGoal(goal: string, context?: PlanContext): Task[] {
-    const tasks: Task[] = [];
-    const goalLower = goal.toLowerCase();
+  private async generateTasksFromGoal(goal: string, context?: PlanContext): Promise<Task[]> {
+    // Call LLM to analyze the goal and generate task sequence
+    const llmResponse = await this.processWithLLM(
+      `Analyze this EDA design goal and generate a sequence of tasks to accomplish it.
 
-    // Common EDA workflow patterns
-    if (goalLower.includes("place")) {
-      // Placement workflow
-      const perceiveTask = this.createTask("perceive", "Check terminal state", {}, context);
-      tasks.push(perceiveTask);
+Goal: "${goal}"
+Tool: ${context?.tool || "innovus"}
+Context: ${context?.designContext || "No additional context"}
 
-      const synthesizeTask = this.createTask(
-        "synthesize",
-        "Generate placement command",
-        { intent: goal, tool: context?.tool },
-        context,
-        [perceiveTask.id]
-      );
-      tasks.push(synthesizeTask);
+Respond with a JSON array of tasks. Each task should have:
+- type: one of "perceive", "synthesize", "verify", "execute", "query_knowledge"
+- description: brief description of what the task does
+- payload: any relevant data (can be empty object)
+- dependencies: array of indices (0-based) of tasks this depends on
 
-      const verifyTask = this.createTask(
-        "verify",
-        "Verify placement command",
-        {},
-        context,
-        [synthesizeTask.id]
-      );
-      tasks.push(verifyTask);
+Example response:
+[
+  {"type": "perceive", "description": "Check terminal state", "payload": {}, "dependencies": []},
+  {"type": "synthesize", "description": "Generate command", "payload": {"intent": "..."}, "dependencies": [0]},
+  {"type": "execute", "description": "Execute command", "payload": {}, "dependencies": [1]}
+]
 
-      const executeTask = this.createTask(
-        "execute",
-        "Execute placement command",
-        {},
-        context,
-        [verifyTask.id]
-      );
-      tasks.push(executeTask);
-    } else if (goalLower.includes("route")) {
-      // Routing workflow
-      const perceiveTask = this.createTask("perceive", "Check terminal state", {}, context);
-      tasks.push(perceiveTask);
+Generate the appropriate task sequence for the given goal.`,
+      { cwd: context?.designContext }
+    );
 
-      const synthesizeTask = this.createTask(
-        "synthesize",
-        "Generate routing command",
-        { intent: goal, tool: context?.tool },
-        context,
-        [perceiveTask.id]
-      );
-      tasks.push(synthesizeTask);
+    // Parse the LLM response to extract tasks
+    let taskDefs: Array<{
+      type: TaskType;
+      description: string;
+      payload?: unknown;
+      dependencies?: number[];
+    }>;
 
-      const executeTask = this.createTask(
-        "execute",
-        "Execute routing command",
-        {},
-        context,
-        [synthesizeTask.id]
-      );
-      tasks.push(executeTask);
-    } else if (goalLower.includes("report") || goalLower.includes("check")) {
-      // Reporting workflow
-      const perceiveTask = this.createTask("perceive", "Check terminal state", {}, context);
-      tasks.push(perceiveTask);
-
-      const synthesizeTask = this.createTask(
-        "synthesize",
-        "Generate report command",
-        { intent: goal, tool: context?.tool },
-        context,
-        [perceiveTask.id]
-      );
-      tasks.push(synthesizeTask);
-
-      const executeTask = this.createTask(
-        "execute",
-        "Execute report command",
-        {},
-        context,
-        [synthesizeTask.id]
-      );
-      tasks.push(executeTask);
-    } else {
-      // Generic workflow
-      const perceiveTask = this.createTask("perceive", "Check terminal state", {}, context);
-      tasks.push(perceiveTask);
-
-      const queryTask = this.createTask(
-        "query_knowledge",
-        "Query knowledge base",
-        { query: goal },
-        context,
-        [perceiveTask.id]
-      );
-      tasks.push(queryTask);
-
-      const synthesizeTask = this.createTask(
-        "synthesize",
-        "Generate command",
-        { intent: goal, tool: context?.tool },
-        context,
-        [queryTask.id]
-      );
-      tasks.push(synthesizeTask);
-
-      const executeTask = this.createTask(
-        "execute",
-        "Execute command",
-        {},
-        context,
-        [synthesizeTask.id]
-      );
-      tasks.push(executeTask);
+    try {
+      // Try to extract JSON from the response
+      const jsonMatch = llmResponse.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        taskDefs = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error("No JSON array found in LLM response");
+      }
+    } catch (parseError) {
+      const errorMsg = parseError instanceof Error ? parseError.message : String(parseError);
+      this.logger("error", "Failed to parse LLM task generation response:", errorMsg);
+      this.logger("error", "LLM response was:", llmResponse);
+      // FAIL FAST: Throw error instead of falling back to hardcoded tasks
+      throw new Error(`Failed to generate tasks from LLM response: ${errorMsg}`);
     }
 
+    // Validate task definitions
+    if (!Array.isArray(taskDefs) || taskDefs.length === 0) {
+      throw new Error("LLM returned empty or invalid task array");
+    }
+
+    // Convert task definitions to Task objects
+    const tasks: Task[] = [];
+    const taskIds: string[] = [];
+
+    for (const def of taskDefs) {
+      // Validate required fields
+      if (!def.type || !def.description) {
+        throw new Error(`Invalid task definition: missing type or description`);
+      }
+
+      const taskId = this.generateTaskId();
+      taskIds.push(taskId);
+
+      // Map dependency indices to task IDs
+      const dependencyIds = (def.dependencies || [])
+        .filter(idx => idx >= 0 && idx < taskIds.length - 1)
+        .map(idx => taskIds[idx]);
+
+      tasks.push({
+        id: taskId,
+        type: def.type,
+        description: def.description,
+        payload: def.payload || {},
+        dependencies: dependencyIds,
+        status: "pending",
+        retryCount: 0,
+        maxRetries: context?.maxRetries ?? this.defaultMaxRetries,
+        timeout: context?.taskTimeout ?? this.defaultTaskTimeout,
+      });
+    }
+
+    this.logger("info", `Generated ${tasks.length} tasks from LLM analysis`);
     return tasks;
   }
 
@@ -1063,7 +1021,13 @@ export class PlannerAgent extends BaseAgent {
           task.error = error.message;
           task.completedAt = Date.now();
           this.taskResolvers.delete(task.id);
-          reject(error);
+          // Handle task failure with recovery instead of propagating error
+          this.handleTaskFailure(task.id, error).then(recoveryAction => {
+            this.applyRecoveryAction(task.id, recoveryAction, plan, resolve, reject);
+          }).catch(() => {
+            // If recovery handling itself fails, reject the task
+            reject(error);
+          });
         },
       });
 
@@ -1092,6 +1056,76 @@ export class PlannerAgent extends BaseAgent {
         }
       }, task.timeout);
     });
+  }
+
+  /**
+   * Apply recovery action for a failed task.
+   */
+  private async applyRecoveryAction(
+    taskId: string,
+    recoveryAction: RecoveryAction,
+    plan: ExecutionPlan,
+    resolve: () => void,
+    reject: (error: Error) => void
+  ): Promise<void> {
+    switch (recoveryAction.type) {
+      case "retry": {
+        // Find and retry the task
+        const task = plan.tasks.find((t) => t.id === taskId);
+        if (task) {
+          task.retryCount++;
+          task.status = "pending";
+          task.error = undefined;
+          this.logger("info", `Retrying task ${taskId} (attempt ${task.retryCount}/${task.maxRetries})`);
+          try {
+            await this.executeTask(plan, task);
+            resolve();
+          } catch (error) {
+            reject(error instanceof Error ? error : new Error(String(error)));
+          }
+        } else {
+          reject(new Error(`Task ${taskId} not found for retry`));
+        }
+        break;
+      }
+
+      case "skip": {
+        // Mark task as completed with empty result (skip)
+        const task = plan.tasks.find((t) => t.id === taskId);
+        if (task) {
+          task.status = "completed";
+          task.result = { skipped: true };
+          task.completedAt = Date.now();
+        }
+        this.logger("info", `Skipped optional task ${taskId}`);
+        resolve();
+        break;
+      }
+
+      case "fallback": {
+        // Execute fallback task
+        if (recoveryAction.fallbackTask) {
+          const taskIndex = plan.tasks.findIndex((t) => t.id === taskId);
+          if (taskIndex !== -1) {
+            plan.tasks.splice(taskIndex + 1, 0, recoveryAction.fallbackTask);
+            this.logger("info", `Executing fallback task for ${taskId}`);
+          }
+        }
+        // Resolve the original task as failed but continue with fallback
+        resolve();
+        break;
+      }
+
+      case "abort":
+      case "escalate":
+      default: {
+        // Critical task failed - mark as failed but resolve to prevent Promise rejection
+        // The plan execution will check task status and handle appropriately
+        this.logger("error", `Task ${taskId} failed with recovery action: ${recoveryAction.type}`);
+        resolve();
+        break;
+      }
+    }
   }
 
   /**

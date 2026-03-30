@@ -212,7 +212,6 @@ interface AgentRegistryEntry {
  * });
  */
 export class OrchestratorAgent extends BaseAgent {
-  private messageBus: MessageBus;
   private planner?: PlannerAgent;
   private knowledgeCurator?: KnowledgeCuratorAgent;
   private intentConfidenceThreshold: number;
@@ -267,7 +266,7 @@ export class OrchestratorAgent extends BaseAgent {
     const goalId = this.generateGoalId();
     const taskId = `goal-${goalId}`;
 
-    this.logger("info", `Processing goal [${goalId}]: ${userInput}`);
+    this._log("info", `Processing goal [${goalId}]: ${userInput}`);
 
     // Record task started
     this.recorder?.recordTaskStarted(this.id, taskId, "goal_processing", {
@@ -305,7 +304,7 @@ Input: "${userInput}"`,
         throw new Error(`LLM intent analysis returned invalid format: ${intentAnalysis.substring(0, 100)}`);
       }
 
-      this.logger("debug", "LLM intent parsed:", intent);
+      this._log("debug", "LLM intent parsed:", intent);
 
       this.activeGoals.set(goalId, { startTime, intent });
 
@@ -371,180 +370,10 @@ Input: "${userInput}"`,
       // Record task failed
       this.recorder?.recordTaskFailed(this.id, taskId, errorMessage);
 
-      return {
-        success: false,
-        message: "An error occurred while processing your request.",
-        duration: Date.now() - startTime,
-        error: errorMessage,
-      };
+      // FAIL FAST: Re-throw the error instead of returning a failed result
+      // This ensures agents cannot "cheat" by continuing without LLM
+      throw error;
     }
-  }
-
-  /**
-   * Interpret intent from natural language input.
-   *
-   * Analyzes the input to determine the user's intent, extracting:
-   * - Intent type (execute_command, debug_error, etc.)
-   * - Target tool if specified
-   * - Confidence score
-   * - Relevant entities
-   *
-   * @param input - Natural language input from user
-   * @returns Interpreted intent with confidence score
-   */
-  async interpretIntent(input: string): Promise<Intent> {
-    const inputLower = input.toLowerCase();
-
-    // Extract entities
-    const entities: Record<string, string> = {};
-
-    // Detect target tool
-    const toolPatterns: Record<string, RegExp> = {
-      innovus: /\binnovus\b|\bencounter\b/i,
-      genus: /\bgenus\b|\brc\b/i,
-      tempus: /\btempus\b|\bprime\s*time\b/i,
-      icc2: /\bicc2\b|\bicc\b/i,
-      openroad: /\bopenroad\b/i,
-    };
-
-    let targetTool: string | undefined;
-    for (const [tool, pattern] of Object.entries(toolPatterns)) {
-      if (pattern.test(input)) {
-        targetTool = tool;
-        entities.tool = tool;
-        break;
-      }
-    }
-
-    // EDA/Technical keywords that indicate an engineering task (not conversation)
-    const edaTechnicalPatterns = [
-      // Physical design concepts
-      /\b(floorplan|placement|routing|cts|clock\s*tree|synthesis|sta|timing)\b/i,
-      /\b(congestion|density|utilization|congestion|drc|lvs|parasitic)\b/i,
-      /\b(hold|setup|slack|violation|constraint|sdc|library|lef|def|gds)\b/i,
-      /\b(power|area|timing\s*closure|signoff|pv|physical\s*verification)\b/i,
-      // Commands and operations
-      /\b(commands?|tcl|script|report|generate|create|analyze|check)\b/i,
-      /\b(optimize|tune|adjust|configure|set\s*up|implement)\b/i,
-      // Design elements
-      /\b(cell|instance|net|pin|port|layer|metal|via|track|site)\b/i,
-      /\b(macros?|memory|io|pad|bump|die|core|row|column)\b/i,
-      // EDA file formats
-      /\b(verilog|vhdl|netlist|spef|sdf|liberty|lef|def|gdsii|oasis)\b/i,
-      // Analysis types
-      /\b(crosstalk|noise|si|ir\s*drop|em|electromigration|thermal)\b/i,
-      // Process/Methodology
-      /\b(28nm|7nm|5nm|3nm|finfet|process|node|technology)\b/i,
-    ];
-
-    const hasTechnicalContent = edaTechnicalPatterns.some((p) => p.test(input));
-
-    // Detect intent type based on keywords
-    let type: IntentType = "unknown";
-    let confidence = 0.5;
-    let description = input;
-
-    // Multi-step task patterns
-    const multiStepPatterns = [
-      /\b(run|execute|perform)\s+(the\s+)?(full\s+)?(flow|process|steps?|sequence)/i,
-      /\b(from\s+)?(synthesis|floorplan|placement)\s+(to|through|until)\s+(routing|gds|signoff)/i,
-      /\bcomplete\s+(design|flow|process)/i,
-      /\bdo\s+everything\s+(needed|required)\s+to\b/i,
-    ];
-
-    if (multiStepPatterns.some((p) => p.test(input))) {
-      type = "multi_step_task";
-      confidence = 0.85;
-      description = `Multi-step task: ${input}`;
-    }
-    // Debug/error patterns
-    else if (
-      /\b(debug|fix|resolve|solve|error|fail|issue|problem|violation)\b/i.test(
-        inputLower
-      )
-    ) {
-      type = "debug_error";
-      confidence = 0.8;
-      description = `Debug/Fix: ${input}`;
-
-      // Extract error type
-      if (/\bhold\b/i.test(inputLower)) entities.errorType = "hold";
-      if (/\bsetup\b/i.test(inputLower)) entities.errorType = "setup";
-      if (/\bcongestion\b/i.test(inputLower)) entities.errorType = "congestion";
-      if (/\bdrc\b/i.test(inputLower)) entities.errorType = "drc";
-    }
-    // Optimization patterns
-    else if (
-      /\b(optimize|improve|better|reduce|minimize|maximize|tune)\b/i.test(inputLower)
-    ) {
-      type = "optimize_design";
-      confidence = 0.75;
-      description = `Optimize: ${input}`;
-
-      // Extract optimization target
-      if (/\btiming\b/i.test(inputLower)) entities.target = "timing";
-      if (/\barea\b/i.test(inputLower)) entities.target = "area";
-      if (/\bpower\b/i.test(inputLower)) entities.target = "power";
-      if (/\bcongestion\b/i.test(inputLower)) entities.target = "congestion";
-    }
-    // Technical queries with EDA context - treat as execute_command, not conversation
-    else if (hasTechnicalContent) {
-      type = "execute_command";
-      confidence = 0.75;
-      description = `Technical query: ${input}`;
-    }
-    // Status query patterns
-    else if (
-      /\b(status|progress|how\s+(is|are)|what\s+is|check|report|show\s+me)\b/i.test(
-        inputLower
-      )
-    ) {
-      type = "query_status";
-      confidence = 0.7;
-      description = `Status query: ${input}`;
-    }
-    // Learning patterns
-    else if (
-      /\b(learn|remember|save|capture|store)\s+(this|pattern|workflow|command)\b/i.test(
-        inputLower
-      )
-    ) {
-      type = "learn_pattern";
-      confidence = 0.75;
-      description = `Learning request: ${input}`;
-    }
-    // Conversation patterns - only match true conversational intents
-    else if (
-      /\b(hello|hi|hey|help|thanks|thank\s+you|bye|goodbye)\b/i.test(inputLower) &&
-      !hasTechnicalContent
-    ) {
-      type = "conversation";
-      confidence = 0.6;
-      description = `Conversation: ${input}`;
-    }
-    // Default to execute command for any remaining queries
-    else {
-      type = "execute_command";
-      confidence = 0.65;
-      description = `Execute: ${input}`;
-    }
-
-    // Boost confidence if tool was detected or technical content found
-    if (targetTool) {
-      confidence = Math.min(confidence + 0.1, 1.0);
-    }
-    if (hasTechnicalContent) {
-      confidence = Math.min(confidence + 0.05, 1.0);
-    }
-
-    return {
-      type,
-      targetTool,
-      description,
-      confidence,
-      entities,
-      originalInput: input,
-    };
   }
 
   /**
@@ -565,7 +394,7 @@ Input: "${userInput}"`,
   ): Promise<GoalResult> {
     const startTime = Date.now();
 
-    this.logger("info", `Delegating to planner: ${goal}`);
+    this._log("info", `Delegating to planner: ${goal}`);
 
     if (!this.planner) {
       return {
@@ -587,7 +416,7 @@ Input: "${userInput}"`,
       // Create execution plan
       const plan = await this.planner.createPlan(goal, planContext);
 
-      this.logger("info", `Created plan with ${plan.tasks.length} tasks`);
+      this._log("info", `Created plan with ${plan.tasks.length} tasks`);
 
       // Execute the plan
       const planResult = await this.planner.executePlan(plan);
@@ -603,12 +432,8 @@ Input: "${userInput}"`,
         error: planResult.error,
       };
     } catch (error) {
-      return {
-        success: false,
-        message: "Failed to execute plan",
-        duration: Date.now() - startTime,
-        error: error instanceof Error ? error.message : String(error),
-      };
+      // FAIL FAST: Re-throw the error instead of returning a failed result
+      throw error;
     }
   }
 
@@ -622,7 +447,7 @@ Input: "${userInput}"`,
    * @param event - The system event to handle
    */
   async handleSystemEvent(event: SystemEvent): Promise<void> {
-    this.logger("info", `Handling system event: ${event.type}`);
+    this._log("info", `Handling system event: ${event.type}`);
 
     switch (event.type) {
       case "agent.error":
@@ -654,7 +479,7 @@ Input: "${userInput}"`,
         break;
 
       default:
-        this.logger("warn", `Unknown system event type: ${event.type}`);
+        this._log("warn", `Unknown system event type: ${event.type}`);
     }
   }
 
@@ -691,7 +516,7 @@ Input: "${userInput}"`,
    * Use this for critical situations requiring immediate halt.
    */
   async emergencyStop(): Promise<void> {
-    this.logger("critical", "EMERGENCY STOP initiated");
+    this._log("critical", "EMERGENCY STOP initiated");
 
     // Cancel all active goals
     this.activeGoals.clear();
@@ -728,7 +553,7 @@ Input: "${userInput}"`,
       lastActivity: Date.now(),
     });
 
-    this.logger("debug", `Registered agent: ${agentId}`);
+    this._log("debug", `Registered agent: ${agentId}`);
   }
 
   /**
@@ -751,7 +576,7 @@ Input: "${userInput}"`,
    * @param message - The message to handle
    */
   async handleMessage(message: AgentMessage): Promise<void> {
-    this.logger("debug", `Received message: ${message.type} from ${message.sender}`);
+    this._log("debug", `Received message: ${message.type} from ${message.sender}`);
 
     switch (message.type) {
       case "escalate":
@@ -771,7 +596,7 @@ Input: "${userInput}"`,
         break;
 
       default:
-        this.logger("debug", `Unhandled message type: ${message.type}`);
+        this._log("debug", `Unhandled message type: ${message.type}`);
     }
   }
 
@@ -779,10 +604,10 @@ Input: "${userInput}"`,
    * Lifecycle hook called during initialization.
    */
   protected async onInitialize(): Promise<void> {
-    this.logger("info", "OrchestratorAgent initializing");
+    this._log("info", "OrchestratorAgent initializing");
 
     // Register with MessageBus
-    this.messageBus.registerAgent("orchestrator" as AgentId, async (message) => {
+    this.messageBus?.registerAgent("orchestrator" as AgentId, async (message) => {
       const convertedMessage: AgentMessage = {
         id: message.id,
         type: message.type,
@@ -796,25 +621,8 @@ Input: "${userInput}"`,
       await this.receiveMessage(convertedMessage);
     });
 
-    // Set up event forwarding from BaseAgent to MessageBus
-    this.on("sendMessage", (message: AgentMessage) => {
-      const busMessage: BusAgentMessage = {
-        id: message.id,
-        from: message.sender as AgentId,
-        to: message.recipient === "broadcast" ? "broadcast" : (message.recipient as AgentId),
-        type: message.type as import("./MessageBus").MessageType,
-        payload: message.payload,
-        timestamp: message.timestamp,
-        priority: message.priority ?? "normal",
-        correlationId: message.correlationId,
-      };
-      this.messageBus.send(busMessage).catch((err) => {
-        this.logger("error", "Failed to send message via MessageBus:", err);
-      });
-    });
-
     // Subscribe to relevant events
-    this.messageSubscription = this.messageBus.subscribe("escalate", async (message) => {
+    this.messageSubscription = this.messageBus?.subscribe("escalate", async (message) => {
       const convertedMessage: AgentMessage = {
         id: message.id,
         type: message.type,
@@ -833,14 +641,14 @@ Input: "${userInput}"`,
    * Lifecycle hook called when starting.
    */
   protected async onStart(): Promise<void> {
-    this.logger("info", "OrchestratorAgent started");
+    this._log("info", "OrchestratorAgent started");
   }
 
   /**
    * Lifecycle hook called when stopping.
    */
   protected async onStop(): Promise<void> {
-    this.logger("info", "OrchestratorAgent stopping");
+    this._log("info", "OrchestratorAgent stopping");
 
     // Cancel all active goals
     this.activeGoals.clear();
@@ -850,15 +658,15 @@ Input: "${userInput}"`,
    * Lifecycle hook called during cleanup.
    */
   protected async onCleanup(): Promise<void> {
-    this.logger("info", "OrchestratorAgent cleaning up");
+    this._log("info", "OrchestratorAgent cleaning up");
 
     // Unsubscribe from MessageBus
     if (this.messageSubscription) {
-      this.messageBus.unsubscribe(this.messageSubscription);
+      this.messageBus?.unsubscribe(this.messageSubscription);
     }
 
     // Unregister from MessageBus
-    this.messageBus.unregisterAgent("orchestrator" as AgentId);
+    this.messageBus?.unregisterAgent("orchestrator" as AgentId);
 
     // Clear registries
     this.agentRegistry.clear();
@@ -893,96 +701,76 @@ Input: "${userInput}"`,
   }
 
   private isSimpleCommand(intent: Intent): boolean {
-    // Simple commands are single-step, high-confidence intents
-    // that don't require complex planning
-    if (intent.confidence < 0.7) return false;
-
-    // Check for multi-step indicators
-    const multiStepIndicators = [
-      /\band\s+then\b/i,
-      /\bfollowed\s+by\b/i,
-      /\bafter\s+that\b/i,
-      /\bnext\b/i,
-      /\bfinally\b/i,
-    ];
-
-    return !multiStepIndicators.some((pattern) =>
-      pattern.test(intent.originalInput)
-    );
+    // ANTI-CHEATING: Use LLM-based determination instead of regex patterns
+    // For now, treat all commands as potentially complex - let the planner decide
+    // This avoids regex-based cheating while maintaining functionality
+    return intent.confidence >= 0.9;
   }
 
   private async handleConversation(
     intent: Intent,
     _context?: UserContext
   ): Promise<GoalResult> {
-    const input = intent.originalInput.toLowerCase();
+    // ANTI-CHEATING: Always use LLM for conversational responses
+    // Never return hardcoded responses
+    const startTime = Date.now();
 
-    // Handle common conversational intents
-    if (/\b(hello|hi|hey)\b/i.test(input)) {
+    try {
+      const response = await this.processWithLLM(
+        `The user said: "${intent.originalInput}"
+
+This is a conversational query. Provide a helpful, natural response as an EDA assistant.
+If they said hello/hi, greet them warmly.
+If they asked for help, explain what you can do (run EDA commands, debug errors, optimize designs, check status).
+If they asked for status, provide a brief system status summary.
+
+Respond naturally without mentioning you are an AI.`
+      );
+
       return {
         success: true,
-        message: "Hello! I'm your EDA assistant. How can I help you today?",
-        duration: 0,
+        message: response.trim(),
+        duration: Date.now() - startTime,
       };
+    } catch (error) {
+      // FAIL FAST: Re-throw LLM errors instead of returning fallback
+      throw error;
     }
-
-    if (/\bhelp\b/i.test(input)) {
-      return {
-        success: true,
-        message:
-          "I can help you with:\n" +
-          "- Running EDA tool commands (placement, routing, timing analysis)\n" +
-          "- Debugging errors and violations\n" +
-          "- Optimizing your design for timing, area, or power\n" +
-          "- Checking status and generating reports\n" +
-          "- Learning from successful workflows\n\n" +
-          "What would you like to do?",
-        duration: 0,
-      };
-    }
-
-    if (/\b(status|how\s+are\s+you)\b/i.test(input)) {
-      const status = this.getSystemStatus();
-      return {
-        success: true,
-        message:
-          `System status:\n` +
-          `- Orchestrator: ${status.orchestrator}\n` +
-          `- Planner: ${status.planner}\n` +
-          `- Active plans: ${status.activePlans}\n` +
-          `- Queue depth: ${status.queueDepth}`,
-        duration: 0,
-      };
-    }
-
-    return {
-      success: true,
-      message: "I understand. Please tell me what you'd like to do with your design.",
-      duration: 0,
-    };
   }
 
   private async handleStatusQuery(
     _intent: Intent,
     _context?: UserContext
   ): Promise<GoalResult> {
+    // ANTI-CHEATING: Use LLM to format status response
+    const startTime = Date.now();
     const status = this.getSystemStatus();
 
-    return {
-      success: true,
-      message:
-        `Current system status:\n` +
-        `Orchestrator: ${status.orchestrator}\n` +
-        `Planner: ${status.planner}\n` +
-        `Knowledge Curator: ${status.knowledgeCurator}\n` +
-        `Terminal Perception: ${status.terminalPerception}\n` +
-        `Command Synthesis: ${status.commandSynthesis}\n` +
-        `Verification: ${status.verification}\n` +
-        `Execution: ${status.execution}\n` +
-        `Active plans: ${status.activePlans}\n` +
-        `Queue depth: ${status.queueDepth}`,
-      duration: 0,
-    };
+    try {
+      const response = await this.processWithLLM(
+        `Format a helpful system status report based on this data:
+Orchestrator: ${status.orchestrator}
+Planner: ${status.planner}
+Knowledge Curator: ${status.knowledgeCurator}
+Terminal Perception: ${status.terminalPerception}
+Command Synthesis: ${status.commandSynthesis}
+Verification: ${status.verification}
+Execution: ${status.execution}
+Active plans: ${status.activePlans}
+Queue depth: ${status.queueDepth}
+
+Provide a concise, natural language summary.`
+      );
+
+      return {
+        success: true,
+        message: response.trim(),
+        duration: Date.now() - startTime,
+      };
+    } catch (error) {
+      // FAIL FAST: Re-throw LLM errors
+      throw error;
+    }
   }
 
   private async handleSimpleCommand(
@@ -1026,7 +814,7 @@ Input: "${userInput}"`,
 
   private async handleAgentError(event: SystemEvent): Promise<void> {
     const { agentId, error } = event.payload as { agentId: string; error: string };
-    this.logger("error", `Agent ${agentId} reported error: ${error}`);
+    this._log("error", `Agent ${agentId} reported error: ${error}`);
 
     // Update agent state
     this.updateAgentState(agentId as AgentId, "error");
@@ -1042,14 +830,14 @@ Input: "${userInput}"`,
 
   private async handleAgentRecovered(event: SystemEvent): Promise<void> {
     const { agentId } = event.payload as { agentId: string };
-    this.logger("info", `Agent ${agentId} recovered`);
+    this._log("info", `Agent ${agentId} recovered`);
 
     this.updateAgentState(agentId as AgentId, "idle");
   }
 
   private async handleResourceLow(event: SystemEvent): Promise<void> {
     const { resource, level } = event.payload as { resource: string; level: number };
-    this.logger("warn", `Low resource: ${resource} at ${level}%`);
+    this._log("warn", `Low resource: ${resource} at ${level}%`);
 
     // Could trigger resource optimization or queuing
     this.broadcastEvent("orchestrate", {
@@ -1061,7 +849,7 @@ Input: "${userInput}"`,
 
   private async handleKnowledgeGap(event: SystemEvent): Promise<void> {
     const { query, reason } = event.payload as { query: string; reason: string };
-    this.logger("info", `Knowledge gap detected: ${reason}`);
+    this._log("info", `Knowledge gap detected: ${reason}`);
 
     // Could trigger learning or user notification
     this.broadcastEvent("orchestrate", {
@@ -1072,13 +860,13 @@ Input: "${userInput}"`,
   }
 
   private async handleUserInterrupt(_event: SystemEvent): Promise<void> {
-    this.logger("info", "User interrupt received");
+    this._log("info", "User interrupt received");
     await this.emergencyStop();
   }
 
   private async handlePlanFailed(event: SystemEvent): Promise<void> {
     const { planId, error } = event.payload as { planId: string; error: string };
-    this.logger("error", `Plan ${planId} failed: ${error}`);
+    this._log("error", `Plan ${planId} failed: ${error}`);
 
     // Could trigger replanning or escalation
     this.broadcastEvent("orchestrate", {
@@ -1089,7 +877,7 @@ Input: "${userInput}"`,
   }
 
   private async handleTerminalDisconnected(_event: SystemEvent): Promise<void> {
-    this.logger("error", "Terminal disconnected");
+    this._log("error", "Terminal disconnected");
 
     // Pause operations until terminal reconnects
     this.broadcastEvent("orchestrate", {
@@ -1103,7 +891,7 @@ Input: "${userInput}"`,
       context?: unknown;
     };
 
-    this.logger("info", `Escalation from ${message.sender}: ${payload.reason}`);
+    this._log("info", `Escalation from ${message.sender}: ${payload.reason}`);
 
     // Emit escalation event for UI handling
     this.emit("escalation", {
@@ -1120,7 +908,7 @@ Input: "${userInput}"`,
       result?: unknown;
     };
 
-    this.logger("debug", `Task ${payload.taskId} completed by ${message.sender}`);
+    this._log("debug", `Task ${payload.taskId} completed by ${message.sender}`);
 
     // Update agent activity
     this.updateAgentState(message.sender as AgentId, "idle");
@@ -1132,7 +920,7 @@ Input: "${userInput}"`,
       error?: string;
     };
 
-    this.logger("error", `Task ${payload.taskId} failed: ${payload.error}`);
+    this._log("error", `Task ${payload.taskId} failed: ${payload.error}`);
 
     // Update agent state
     this.updateAgentState(message.sender as AgentId, "error");
@@ -1161,8 +949,8 @@ Input: "${userInput}"`,
       priority: "high",
     };
 
-    this.messageBus.broadcast(eventMessage).catch((err) => {
-      this.logger("error", "Failed to broadcast event:", err);
+    this.messageBus?.broadcast(eventMessage).catch((err) => {
+      this._log("error", "Failed to broadcast event:", err);
     });
   }
 
@@ -1170,13 +958,13 @@ Input: "${userInput}"`,
     return `goal_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
-  private logger(level: "debug" | "info" | "warn" | "error" | "critical", ...args: unknown[]): void {
+  private _log(level: "debug" | "info" | "warn" | "error" | "critical", ...args: unknown[]): void {
     if (!this.debug && level === "debug") return;
 
     const timestamp = new Date().toISOString();
     const prefix = `[OrchestratorAgent:${level.toUpperCase()}] ${timestamp}`;
 
-     
+
     console.log(prefix, ...args);
   }
 }

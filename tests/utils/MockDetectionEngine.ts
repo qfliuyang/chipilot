@@ -355,7 +355,7 @@ export class MockDetectionEngine {
       const matchingCall = llmCalls.find(
         (call) =>
           call.agentId === response.agentId &&
-          call.timestamp <= response.timestamp &&
+          call.timestamp < response.timestamp &&
           (call.correlationId === response.correlationId || (!call.correlationId && !response.correlationId))
       );
 
@@ -595,7 +595,7 @@ export class MockDetectionEngine {
       const hasMatchingCall = llmCalls.some(
         (call) =>
           call.agentId === response.agentId &&
-          call.timestamp <= response.timestamp &&
+          call.timestamp < response.timestamp &&
           (call.correlationId === response.correlationId || (!call.correlationId && !response.correlationId))
       );
 
@@ -680,17 +680,12 @@ export class MockDetectionEngine {
       const matchingCall = llmCalls.find(
         (call) =>
           call.agentId === response.agentId &&
-          call.timestamp <= response.timestamp &&
+          call.timestamp < response.timestamp &&
           (call.correlationId === response.correlationId || (!call.correlationId && !response.correlationId))
       );
 
       if (matchingCall) {
-        // Use duration field if available (it's the most accurate measure of LLM processing time)
-        // Fall back to timestamp difference if duration is not available
-        const responseDuration = response.duration;
-        const responseTime = responseDuration && responseDuration > 0
-          ? responseDuration
-          : response.timestamp - matchingCall.timestamp;
+        const responseTime = response.timestamp - matchingCall.timestamp;
 
         if (responseTime < this.SUSPICIOUSLY_FAST_THRESHOLD) {
           this.addViolation(
@@ -712,18 +707,16 @@ export class MockDetectionEngine {
           );
         }
 
-        // Check duration field independently if present and differs from calculated time
-        if (responseDuration && responseDuration > 0 && responseDuration !== responseTime) {
-          if (responseDuration < this.SUSPICIOUSLY_FAST_THRESHOLD) {
-            this.addViolation(
-              "high",
-              "SUSPICIOUS_DURATION",
-              `Recorded duration ${responseDuration}ms is suspiciously fast`,
-              response.agentId,
-              filePath,
-              { duration: responseDuration }
-            );
-          }
+        // Check duration field if present
+        if (response.duration && response.duration < this.SUSPICIOUSLY_FAST_THRESHOLD) {
+          this.addViolation(
+            "high",
+            "SUSPICIOUS_DURATION",
+            `Recorded duration ${response.duration}ms is suspiciously fast`,
+            response.agentId,
+            filePath,
+            { duration: response.duration }
+          );
         }
       }
     }

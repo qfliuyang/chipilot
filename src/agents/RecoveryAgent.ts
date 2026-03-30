@@ -303,7 +303,6 @@ export interface RecoveryStats {
  */
 export class RecoveryAgent extends BaseAgent {
   private knowledgeBase?: KnowledgeBase;
-  private messageBus: MessageBus;
 
   // Configuration
   private maxRecoveryAttempts: number;
