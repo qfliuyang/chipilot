@@ -1,0 +1,10 @@
+
+ RUN  v3.2.4 /Users/luzi/code/chipilot-cli/chipilot
+
+ ✓ tests/tier1-unit/VirtualTerminal.test.ts (6 tests | 4 skipped) 24ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed | 4 skipped (6)
+   Start at  07:35:27
+   Duration  125ms (transform 16ms, setup 0ms, collect 10ms, tests 24ms, environment 0ms, prepare 25ms)
+

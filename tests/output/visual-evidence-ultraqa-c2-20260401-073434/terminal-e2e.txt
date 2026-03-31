@@ -1,0 +1,33 @@
+
+ RUN  v3.2.4 /Users/luzi/code/chipilot-cli/chipilot
+
+stdout | tests/terminal/e2e.test.ts > Terminal E2E > VirtualTerminal + TerminalSession Integration > should handle terminal resize with PTY
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+
+stdout | tests/terminal/e2e.test.ts > Terminal E2E > TerminalPane UI > should export TerminalPane component
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+
+stdout | tests/terminal/e2e.test.ts > Terminal E2E > TerminalPane UI > should export TerminalPane component
+TerminalPane not yet implemented
+
+stdout | tests/terminal/e2e.test.ts > Terminal E2E > Terminal Error Handling > should handle command not found
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+
+stdout | tests/terminal/e2e.test.ts > Terminal E2E > Anti-Cheat Validation > should have test output directory for MockDetectionEngine
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+
+ ✓ tests/terminal/e2e.test.ts (10 tests | 1 skipped) 4317ms
+   ✓ Terminal E2E > VirtualTerminal + TerminalSession Integration > should render PTY output in VirtualTerminal  735ms
+   ✓ Terminal E2E > VirtualTerminal + TerminalSession Integration > should handle terminal resize with PTY  707ms
+   ✓ Terminal E2E > Terminal Session Persistence > should maintain session state across commands  805ms
+   ✓ Terminal E2E > Terminal Error Handling > should handle command not found  705ms
+   ✓ Terminal Integration - Performance > should handle rapid command execution  1204ms
+stdout | src/terminal/session.ts:65:17
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+
+
+ Test Files  1 passed (1)
+      Tests  9 passed | 1 skipped (10)
+   Start at  07:34:47
+   Duration  4.43s (transform 48ms, setup 0ms, collect 14ms, tests 4.32s, environment 0ms, prepare 20ms)
+

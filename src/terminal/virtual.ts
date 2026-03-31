@@ -30,6 +30,7 @@ export class VirtualTerminal {
       rows,
       cursorBlink: false,
       allowProposedApi: true,
+      scrollback: 1000,
     }) as TerminalType;
 
     this.serializeAddon = new SerializeAddon() as SerializeAddonType;
@@ -48,6 +49,13 @@ export class VirtualTerminal {
   getScreenLines(): string[] {
     const screen = this.getScreen();
     return screen.split("\n").slice(0, this.terminal.rows);
+  }
+
+  getSelection(): string {
+    // Return current selection if any, otherwise empty string
+    // Note: xterm-headless doesn't support selection natively
+    // This is a placeholder for future selection implementation
+    return "";
   }
 
   resize(cols: number, rows: number): void {

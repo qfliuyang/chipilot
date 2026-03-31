@@ -36,7 +36,14 @@ export class TerminalSession extends EventEmitter {
       return;
     }
 
-    this.ptyProcess = pty.spawn(this.shell, [], {
+    // Use interactive flag to prevent shell from exiting immediately with SIGHUP
+    // Extract the shell name from the path (e.g., "/bin/zsh" -> "zsh")
+    const shellName = this.shell.split('/').pop() || this.shell;
+    const shellArgs = shellName === 'zsh' ? ['-i'] :
+                      shellName === 'bash' ? ['-i'] :
+                      [];  // fallback for other shells
+
+    this.ptyProcess = pty.spawn(this.shell, shellArgs, {
       name: "xterm-256color",
       cols: this.cols,
       rows: this.rows,
@@ -52,6 +59,12 @@ export class TerminalSession extends EventEmitter {
       this.emit("exit", { exitCode, signal });
       this.ptyProcess = null;
       this.started = false;
+
+      // Auto-restart unless explicitly killed
+      if (signal !== "SIGKILL" && signal !== "SIGTERM") {
+        console.log(`[TerminalSession] Shell exited (code: ${exitCode}, signal: ${signal}), restarting...`);
+        setTimeout(() => this.start(), 100);
+      }
     });
 
     this.started = true;

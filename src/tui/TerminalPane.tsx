@@ -28,12 +28,15 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, cols = 80
     return virtualTermRef.current;
   }, [cols, rows]);
 
-  // Handle resize
+  // Handle resize (debounced 100ms)
   useEffect(() => {
-    const vt = getVirtualTerminal();
-    vt.resize(cols, rows);
-    session.resize(cols, rows);
-    forceRender();
+    const timeout = setTimeout(() => {
+      const vt = getVirtualTerminal();
+      vt.resize(cols, rows);
+      session.resize(cols, rows);
+      forceRender();
+    }, 100);
+    return () => clearTimeout(timeout);
   }, [cols, rows, session, getVirtualTerminal]);
 
   // Handle terminal output
@@ -71,6 +74,36 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, cols = 80
     (input, key) => {
       if (!focused) return;
       if (key.tab) return;
+
+      // Handle copy (Ctrl+Shift+C)
+      if (key.ctrl && key.shift && input === "C") {
+        const vt = getVirtualTerminal();
+        const selection = vt.getSelection?.() || "";
+        if (selection) {
+          try {
+            if (typeof navigator !== "undefined" && navigator.clipboard) {
+              navigator.clipboard.writeText(selection);
+            }
+          } catch {
+            // Clipboard API not available, ignore
+          }
+        }
+        return;
+      }
+
+      // Handle paste (Ctrl+Shift+V)
+      if (key.ctrl && key.shift && input === "V") {
+        try {
+          if (typeof navigator !== "undefined" && navigator.clipboard) {
+            navigator.clipboard.readText().then((text) => {
+              if (text) session.write(text);
+            });
+          }
+        } catch {
+          // Clipboard API not available, ignore
+        }
+        return;
+      }
 
       if (key.return) {
         session.write("\r");

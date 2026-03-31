@@ -1,0 +1,101 @@
+bun test v1.3.9 (cf6cdbbb)
+
+tests/tier4-e2e/TerminalSession.test.ts:
+64 | 
+65 |       session.start();
+66 |       await new Promise((r) => setTimeout(r, 500));
+67 | 
+68 |       expect(session.isRunning()).toBe(true);
+69 |       expect(outputs.length).toBeGreaterThan(0);
+                                  ^
+error: expect(received).toBeGreaterThan(expected)
+
+Expected: > 0
+Received: 0
+
+      at <anonymous> (/Users/luzi/code/chipilot-cli/chipilot/tests/tier4-e2e/TerminalSession.test.ts:69:30)
+(fail) TerminalSession > should spawn shell and emit output [503.27ms]
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+81 | 
+82 |       session.execute('echo "test output"');
+83 |       await new Promise((r) => setTimeout(r, 500));
+84 | 
+85 |       const combined = outputs.join("");
+86 |       expect(combined).toContain("test output");
+                            ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "test output"
+Received: ""
+
+      at <anonymous> (/Users/luzi/code/chipilot-cli/chipilot/tests/tier4-e2e/TerminalSession.test.ts:86:24)
+(fail) TerminalSession > should execute command and capture output [705.65ms]
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+(fail) TerminalSession > should handle shell exit [5001.75ms]
+  ^ this test timed out after 5000ms.
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+251 |         if (cols <= 0 || rows <= 0 || isNaN(cols) || isNaN(rows) || cols === Infinity || rows === Infinity) {
+252 |             throw new Error('resizing must be done using positive cols and rows');
+253 |         }
+254 |         var pixelWidth = (_a = pixelSize === null || pixelSize === void 0 ? void 0 : pixelSize.width) !== null && _a !== void 0 ? _a : 0;
+255 |         var pixelHeight = (_b = pixelSize === null || pixelSize === void 0 ? void 0 : pixelSize.height) !== null && _b !== void 0 ? _b : 0;
+256 |         pty.resize(this._fd, cols, rows, pixelWidth, pixelHeight);
+                  ^
+error: ioctl(2) failed, ENOTTY
+      at <anonymous> (/Users/luzi/code/chipilot-cli/chipilot/node_modules/node-pty/lib/unixTerminal.js:256:13)
+      at resize (/Users/luzi/code/chipilot-cli/chipilot/src/terminal/session.ts:84:23)
+      at <anonymous> (/Users/luzi/code/chipilot-cli/chipilot/tests/tier4-e2e/TerminalSession.test.ts:114:15)
+(fail) TerminalSession > should resize terminal [205.35ms]
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+129 | 
+130 |       session.write("echo hello\r");
+131 |       await new Promise((r) => setTimeout(r, 500));
+132 | 
+133 |       const combined = outputs.join("");
+134 |       expect(combined.length).toBeGreaterThan(0);
+                                    ^
+error: expect(received).toBeGreaterThan(expected)
+
+Expected: > 0
+Received: 0
+
+      at <anonymous> (/Users/luzi/code/chipilot-cli/chipilot/tests/tier4-e2e/TerminalSession.test.ts:134:31)
+(fail) TerminalSession > should write raw data to terminal [706.66ms]
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+[TerminalSession] Shell exited (code: 0, signal: 1), restarting...
+(fail) TerminalSession - Error Handling > should handle invalid shell gracefully [5001.52ms]
+  ^ this test timed out after 5000ms.
+212 | 
+213 |       envSession.execute("echo $TEST_VAR");
+214 |       await new Promise((r) => setTimeout(r, 500));
+215 | 
+216 |       const combined = outputs.join("");
+217 |       expect(combined).toContain("test_value_123");
+                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "test_value_123"
+Received: ""
+
+      at <anonymous> (/Users/luzi/code/chipilot-cli/chipilot/tests/tier4-e2e/TerminalSession.test.ts:217:24)
+(fail) TerminalSession - Environment > should set custom environment variables [704.65ms]
+234 | 
+235 |       termSession.execute("echo $TERM");
+236 |       await new Promise((r) => setTimeout(r, 500));
+237 | 
+238 |       const combined = outputs.join("");
+239 |       expect(combined).toContain("xterm-256color");
+                             ^
+error: expect(received).toContain(expected)
+
+Expected to contain: "xterm-256color"
+Received: ""
+
+      at <anonymous> (/Users/luzi/code/chipilot-cli/chipilot/tests/tier4-e2e/TerminalSession.test.ts:239:24)
+(fail) TerminalSession - Environment > should have TERM environment variable set [705.56ms]
+
+ 9 pass
+ 8 fail
+ 22 expect() calls
+Ran 17 tests across 1 file. [13.56s]

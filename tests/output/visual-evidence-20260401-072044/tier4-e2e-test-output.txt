@@ -1,0 +1,79 @@
+bun test v1.3.9 (cf6cdbbb)
+
+tests/tier4-e2e/e2e.test.ts:
+(fail) Tier 4: E2E Acceptance Tests > Scenario: Complete Chat Session > (unnamed) [5000.14ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+# Unhandled error between tests
+-------------------------------
+198 |             return;
+199 |           }
+200 | 
+201 |           if (Date.now() - startTime > waitTimeout) {
+202 |             reject(
+203 |               new Error(
+                        ^
+error: Timeout waiting for pattern "/Welcome to chipilot|chipilot.*EDA/". Recent output:
+
+      at check (/Users/luzi/code/chipilot-cli/chipilot/tests/tier3-integration/pty-runner.ts:203:19)
+-------------------------------
+
+(fail) Tier 4: E2E Acceptance Tests > Scenario: Pane Navigation > (unnamed) [5000.21ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+# Unhandled error between tests
+-------------------------------
+198 |             return;
+199 |           }
+200 | 
+201 |           if (Date.now() - startTime > waitTimeout) {
+202 |             reject(
+203 |               new Error(
+                        ^
+error: Timeout waiting for pattern "/Welcome to chipilot|chipilot.*EDA/". Recent output:
+
+      at check (/Users/luzi/code/chipilot-cli/chipilot/tests/tier3-integration/pty-runner.ts:203:19)
+-------------------------------
+
+(fail) Tier 4: E2E Acceptance Tests > Scenario: Help and Controls > (unnamed) [5000.03ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+# Unhandled error between tests
+-------------------------------
+198 |             return;
+199 |           }
+200 | 
+201 |           if (Date.now() - startTime > waitTimeout) {
+202 |             reject(
+203 |               new Error(
+                        ^
+error: Timeout waiting for pattern "/Welcome to chipilot|chipilot.*EDA/". Recent output:
+
+      at check (/Users/luzi/code/chipilot-cli/chipilot/tests/tier3-integration/pty-runner.ts:203:19)
+-------------------------------
+
+(fail) Tier 4: E2E Acceptance Tests > Scenario: Terminal Commands > (unnamed) [5000.30ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+# Unhandled error between tests
+-------------------------------
+198 |             return;
+199 |           }
+200 | 
+201 |           if (Date.now() - startTime > waitTimeout) {
+202 |             reject(
+203 |               new Error(
+                        ^
+error: Timeout waiting for pattern "/Welcome to chipilot|chipilot.*EDA/". Recent output:
+
+      at check (/Users/luzi/code/chipilot-cli/chipilot/tests/tier3-integration/pty-runner.ts:203:19)
+-------------------------------
+
+(fail) Tier 4: E2E Acceptance Tests > Edge Cases and Stress Tests > (unnamed) [5000.30ms]
+  ^ a beforeEach/afterEach hook timed out for this test.
+
+ 1 pass
+ 5 fail
+ 4 errors
+ 1 expect() calls
+Ran 6 tests across 1 file. [25.02s]
