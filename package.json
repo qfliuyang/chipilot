@@ -1,5 +1,5 @@
 {
-  "name": "claude-code-terminal",
+  "name": "chipclaude",
   "version": "1.0.0",
   "description": "Claude Code with integrated terminal - based on claude-code source",
   "type": "module",

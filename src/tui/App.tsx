@@ -22,7 +22,7 @@ export const App: React.FC = () => {
   const [pane, setPane] = useState<"chat" | "term">("chat");
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Welcome to Claude Code with Terminal! Type your message or Tab to switch to terminal." },
+    { role: "assistant", content: "Welcome to ChipClaude - Claude Code with embedded terminal! Type your message or Tab to switch to terminal." },
   ]);
 
   // Initialize session once
@@ -72,7 +72,7 @@ export const App: React.FC = () => {
     <Box flexDirection="column" width={width} height={height}>
       {/* Header */}
       <Box width={width} height={1} flexShrink={0}>
-        <Text bold color="cyan">claude-code + terminal</Text>
+        <Text bold color="cyan">ChipClaude - Claude Code + Terminal</Text>
         <Box flexGrow={1} />
         <Text dimColor>Tab: switch | Ctrl+C: exit</Text>
       </Box>
