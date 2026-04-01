@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1774609522167,
-  "projectRoot": "/Users/luzi/code/chipilot-cli/chipilot/.claude/worktrees/cli-test",
+  "lastScanned": 1774952354571,
+  "projectRoot": "/Users/luzi/code/chipilot-cli/chipilot",
   "techStack": {
     "languages": [
       {
@@ -82,28 +82,40 @@
     "dist": {
       "path": "dist",
       "purpose": "Distribution/build output",
-      "fileCount": 10,
-      "lastAccessed": 1774609522107,
+      "fileCount": 14,
+      "lastAccessed": 1774952354520,
       "keyFiles": [
-        "App-CKFAINSF.js",
-        "App-CKFAINSF.js.map",
-        "chunk-RGWOZ2YE.js",
-        "chunk-RGWOZ2YE.js.map",
-        "chunk-W7J6QK45.js"
+        "App-NE7D6TZJ.js",
+        "App-NE7D6TZJ.js.map",
+        "chunk-D7GSOOPF.js",
+        "chunk-D7GSOOPF.js.map",
+        "chunk-QDJDPRQF.js"
       ]
     },
     "docs": {
       "path": "docs",
       "purpose": "Documentation",
-      "fileCount": 0,
-      "lastAccessed": 1774609522107,
-      "keyFiles": []
+      "fileCount": 2,
+      "lastAccessed": 1774952354521,
+      "keyFiles": [
+        "ANTI_CHEATING.md"
+      ]
+    },
+    "recordings": {
+      "path": "recordings",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1774952354521,
+      "keyFiles": [
+        "tui-session-1774696923385.ndjson",
+        "tui-session-1774832898134.ndjson"
+      ]
     },
     "src": {
       "path": "src",
       "purpose": "Source code",
-      "fileCount": 2,
-      "lastAccessed": 1774609522108,
+      "fileCount": 3,
+      "lastAccessed": 1774952354522,
       "keyFiles": [
         "cli.ts",
         "index.ts"
@@ -112,8 +124,8 @@
     "tests": {
       "path": "tests",
       "purpose": "Test files",
-      "fileCount": 7,
-      "lastAccessed": 1774609522109,
+      "fileCount": 8,
+      "lastAccessed": 1774952354522,
       "keyFiles": [
         "README.md",
         "TEST_RESULTS.md",
@@ -126,7 +138,7 @@
       "path": "src/types",
       "purpose": "Type definitions",
       "fileCount": 2,
-      "lastAccessed": 1774609522109,
+      "lastAccessed": 1774952354522,
       "keyFiles": [
         "xterm-modules.d.ts",
         "xterm.d.ts"
@@ -135,303 +147,171 @@
   },
   "hotPaths": [
     {
-      "path": "src/agents/PlannerAgent.ts",
-      "accessCount": 63,
-      "lastAccessed": 1774626789015,
-      "type": "file"
-    },
-    {
-      "path": "src/agents/BaseAgent.ts",
-      "accessCount": 36,
-      "lastAccessed": 1774662101268,
-      "type": "file"
-    },
-    {
-      "path": "src/agents/OrchestratorAgent.ts",
-      "accessCount": 27,
-      "lastAccessed": 1774628636073,
-      "type": "file"
-    },
-    {
-      "path": "src/tui/App.tsx",
-      "accessCount": 19,
-      "lastAccessed": 1774628438074,
-      "type": "file"
-    },
-    {
-      "path": "src/agents/AgentRecorder.ts",
-      "accessCount": 12,
-      "lastAccessed": 1774628677205,
-      "type": "file"
-    },
-    {
-      "path": "src/agent/index.ts",
+      "path": "tests/terminal/e2e.test.ts",
       "accessCount": 11,
-      "lastAccessed": 1774662084391,
+      "lastAccessed": 1775001179503,
       "type": "file"
     },
     {
-      "path": "tests/tier4-e2e/TUI-E2E.test.ts",
+      "path": "src/terminal/session.ts",
+      "accessCount": 11,
+      "lastAccessed": 1775002351745,
+      "type": "file"
+    },
+    {
+      "path": "src/tui/TerminalPane.tsx",
       "accessCount": 10,
-      "lastAccessed": 1774628015161,
+      "lastAccessed": 1775002352153,
       "type": "file"
     },
     {
-      "path": "tests/debug-exports.test.ts",
-      "accessCount": 9,
-      "lastAccessed": 1774612077248,
+      "path": "src/terminal/virtual.ts",
+      "accessCount": 10,
+      "lastAccessed": 1775002388364,
       "type": "file"
     },
     {
-      "path": "src/agents/CommandSynthesisAgent.ts",
-      "accessCount": 9,
-      "lastAccessed": 1774620847940,
+      "path": "src/terminal/__tests__/VirtualTerminal.test.ts",
+      "accessCount": 5,
+      "lastAccessed": 1774973501570,
       "type": "file"
     },
     {
-      "path": "src/agents/TerminalPerceptionAgent.ts",
-      "accessCount": 9,
-      "lastAccessed": 1774624946506,
+      "path": "tests/tier1-unit/VirtualTerminal.test.ts",
+      "accessCount": 5,
+      "lastAccessed": 1774973592433,
       "type": "file"
     },
     {
-      "path": "tests/ultraqa/TUIIntegration.test.ts",
-      "accessCount": 9,
-      "lastAccessed": 1774625534584,
+      "path": "tests/terminal/anti-cheat.test.ts",
+      "accessCount": 5,
+      "lastAccessed": 1774999291014,
       "type": "file"
     },
     {
-      "path": "e2e-test-with-llm.mjs",
-      "accessCount": 8,
-      "lastAccessed": 1774654813521,
-      "type": "file"
-    },
-    {
-      "path": "tests/ultraqa/MultiAgentValidation.test.ts",
-      "accessCount": 7,
-      "lastAccessed": 1774612506245,
-      "type": "file"
-    },
-    {
-      "path": "src/agents/KnowledgeBase.ts",
-      "accessCount": 7,
-      "lastAccessed": 1774614502643,
-      "type": "file"
-    },
-    {
-      "path": "src/agents/KnowledgeCuratorAgent.ts",
-      "accessCount": 7,
-      "lastAccessed": 1774614831350,
-      "type": "file"
-    },
-    {
-      "path": "src/agents",
-      "accessCount": 6,
-      "lastAccessed": 1774626761407,
-      "type": "directory"
-    },
-    {
-      "path": "src",
+      "path": "src/terminal/__tests__/TerminalSession.test.ts",
       "accessCount": 4,
-      "lastAccessed": 1774624684198,
-      "type": "directory"
-    },
-    {
-      "path": ".env",
-      "accessCount": 4,
-      "lastAccessed": 1774624761211,
+      "lastAccessed": 1774973501693,
       "type": "file"
     },
     {
-      "path": "src/agents/RecoveryAgent.ts",
-      "accessCount": 4,
-      "lastAccessed": 1774624993895,
-      "type": "directory"
-    },
-    {
-      "path": "vitest.config.ts",
-      "accessCount": 4,
-      "lastAccessed": 1774625879687,
-      "type": "file"
-    },
-    {
-      "path": "src/agents/index.ts",
+      "path": "CLAUDE.md",
       "accessCount": 3,
-      "lastAccessed": 1774613982568,
+      "lastAccessed": 1774952469283,
       "type": "file"
     },
     {
-      "path": "tests/ultraqa/recordings/tui-integration-1774615718300-data.json",
+      "path": "",
       "accessCount": 3,
-      "lastAccessed": 1774616088863,
+      "lastAccessed": 1774967266201,
+      "type": "directory"
+    },
+    {
+      "path": "tests/tier3-integration/TerminalSession.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1774973537219,
       "type": "file"
     },
     {
-      "path": "tests/tier1-unit/RecoveryAgent.test.ts",
-      "accessCount": 2,
-      "lastAccessed": 1774612064827,
+      "path": "tests/tier4-e2e/TerminalSession.test.ts",
+      "accessCount": 3,
+      "lastAccessed": 1774999943626,
       "type": "file"
     },
     {
-      "path": "tests/ultraqa/recordings/tui-integration-1774612796212-data.json",
-      "accessCount": 2,
-      "lastAccessed": 1774614529188,
+      "path": "src/terminal/xterm-polyfill.ts",
+      "accessCount": 3,
+      "lastAccessed": 1775001227672,
       "type": "file"
     },
     {
-      "path": "test-input.mjs",
+      "path": "tests/terminal.test.ts",
       "accessCount": 2,
-      "lastAccessed": 1774628137735,
+      "lastAccessed": 1774973443621,
       "type": "file"
     },
     {
-      "path": "test-coordination.mjs",
+      "path": "src/types/xterm-modules.d.ts",
       "accessCount": 2,
-      "lastAccessed": 1774628846257,
+      "lastAccessed": 1775001227665,
       "type": "file"
     },
     {
-      "path": "recordings/tui-session-1774654819368.ndjson",
+      "path": "tests/tier3-integration/pty-runner.ts",
       "accessCount": 2,
-      "lastAccessed": 1774662059137,
+      "lastAccessed": 1775002763165,
+      "type": "file"
+    },
+    {
+      "path": "src/testing/MockDetectionEngine.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774973122721,
+      "type": "file"
+    },
+    {
+      "path": "tests/output/terminal-test-latest/recording.ndjson",
+      "accessCount": 1,
+      "lastAccessed": 1774973325929,
       "type": "file"
     },
     {
       "path": "package.json",
       "accessCount": 1,
-      "lastAccessed": 1774611951983,
+      "lastAccessed": 1774973434801,
       "type": "file"
     },
     {
-      "path": "tests",
+      "path": "vitest.config.ts",
       "accessCount": 1,
-      "lastAccessed": 1774611976974,
+      "lastAccessed": 1774973440313,
+      "type": "file"
+    },
+    {
+      "path": "claude-code-source/utils/Shell.ts",
+      "accessCount": 1,
+      "lastAccessed": 1774999613380,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 1,
+      "lastAccessed": 1775001201266,
       "type": "directory"
     },
     {
-      "path": "tests/agent.test.ts",
+      "path": "src/terminal",
       "accessCount": 1,
-      "lastAccessed": 1774612015618,
-      "type": "file"
-    },
-    {
-      "path": "tests/ultraqa/recordings/multi-agent-validation-1774612205141-report.md",
-      "accessCount": 1,
-      "lastAccessed": 1774612223239,
-      "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 1,
-      "lastAccessed": 1774612321140,
+      "lastAccessed": 1775001212346,
       "type": "directory"
     },
     {
-      "path": "src/agents/VerificationAgent.ts",
+      "path": "tests/visual/terminal-visual-e2e.test.ts",
       "accessCount": 1,
-      "lastAccessed": 1774612483216,
+      "lastAccessed": 1775002824460,
       "type": "file"
     },
     {
-      "path": "tests/ultraqa/recordings/tui-integration-1774615217002-data.json",
+      "path": "tests/output/visual-evidence/terminal-visual-1775002831354/01-initial-state.txt",
       "accessCount": 1,
-      "lastAccessed": 1774615235320,
+      "lastAccessed": 1775002839852,
       "type": "file"
     },
     {
-      "path": "src/agents/MessageBus.ts",
+      "path": "scripts/ansi_to_image.py",
       "accessCount": 1,
-      "lastAccessed": 1774615680381,
+      "lastAccessed": 1775003018420,
       "type": "file"
     },
     {
-      "path": "tests/ultraqa/recordings/tui-integration-1774616424478-data.json",
+      "path": "tests/output/visual-evidence/terminal-visual-1775002831354/01-initial-state.png",
       "accessCount": 1,
-      "lastAccessed": 1774616882198,
-      "type": "file"
-    },
-    {
-      "path": "tests/ultraqa/recordings/tui-integration-1774617019768-data.json",
-      "accessCount": 1,
-      "lastAccessed": 1774617215449,
-      "type": "file"
-    },
-    {
-      "path": "tests/ultraqa/recordings/tui-integration-1774617618051.ndjson",
-      "accessCount": 1,
-      "lastAccessed": 1774617869836,
-      "type": "file"
-    },
-    {
-      "path": "tests/ultraqa/recordings/tui-integration-1774621608002-summary.json",
-      "accessCount": 1,
-      "lastAccessed": 1774621810516,
+      "lastAccessed": 1775003055363,
       "type": "file"
     },
     {
       "path": "tests/tier4-e2e/e2e.test.ts",
       "accessCount": 1,
-      "lastAccessed": 1774625500127,
-      "type": "file"
-    },
-    {
-      "path": "tests/tier3-integration/pty-runner.ts",
-      "accessCount": 1,
-      "lastAccessed": 1774625507644,
-      "type": "file"
-    },
-    {
-      "path": "tests/tier4-e2e/evidence/pane-switch-initial-1774625912108.txt",
-      "accessCount": 1,
-      "lastAccessed": 1774625985960,
-      "type": "file"
-    },
-    {
-      "path": "src/tui/hooks/useAgentStatus.ts",
-      "accessCount": 1,
-      "lastAccessed": 1774626079978,
-      "type": "file"
-    },
-    {
-      "path": "recordings/tui-session-1774627662542.ndjson",
-      "accessCount": 1,
-      "lastAccessed": 1774627737440,
-      "type": "file"
-    },
-    {
-      "path": "e2e-test-cycle.mjs",
-      "accessCount": 1,
-      "lastAccessed": 1774654214016,
-      "type": "file"
-    },
-    {
-      "path": "tests/output/e2e-test-1774654218757/recording-summary.json",
-      "accessCount": 1,
-      "lastAccessed": 1774654243727,
-      "type": "file"
-    },
-    {
-      "path": "tests/output/e2e-test-1774654218757/TEST_REPORT.md",
-      "accessCount": 1,
-      "lastAccessed": 1774654320583,
-      "type": "file"
-    },
-    {
-      "path": "tests/output/e2e-test-1774654819234/TEST_REPORT.md",
-      "accessCount": 1,
-      "lastAccessed": 1774654853232,
-      "type": "file"
-    },
-    {
-      "path": "tests/output/e2e-test-1774654819234/screen-final.txt",
-      "accessCount": 1,
-      "lastAccessed": 1774654860768,
-      "type": "file"
-    },
-    {
-      "path": "tests/output/e2e-test-1774654819234/test-summary.json",
-      "accessCount": 1,
-      "lastAccessed": 1774662059130,
+      "lastAccessed": 1775003184521,
       "type": "file"
     }
   ],
