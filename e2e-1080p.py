@@ -18,11 +18,26 @@ SCRIPT_DIR = Path(__file__).parent.absolute()
 TIMESTAMP = datetime.now().strftime("%Y%m%d-%H%M%S")
 OUTPUT_DIR = SCRIPT_DIR / "tests" / "output" / f"e2e-1080p-{TIMESTAMP}"
 
-# Screen region for capture (1920x1080 at position 100,100)
+# Screen region for capture (1920x1080 pixels at position 100,100)
+# On Retina displays, screencapture uses pixel coordinates
 CAPTURE_X = 100
 CAPTURE_Y = 100
 CAPTURE_W = 1920
 CAPTURE_H = 1080
+
+# Terminal window bounds (points, not pixels)
+# On Retina: 960x540 points = 1920x1080 pixels
+TERM_X = 100
+TERM_Y = 100
+TERM_W = 960  # 1920/2 for Retina
+TERM_H = 540  # 1080/2 for Retina
+
+# Terminal window bounds (points, not pixels)
+# On Retina: 960x540 points = 1920x1080 pixels
+TERM_X = 100
+TERM_Y = 100
+TERM_W = 960  # 1920/2 for Retina
+TERM_H = 540  # 1080/2 for Retina
 
 class Colors:
     RED = '\033[0;31m'
@@ -123,7 +138,7 @@ class E2ETest:
 tell application "Terminal"
     activate
     set win to do script "cd '{SCRIPT_DIR}' && tmux new-session -s chipclaude-e2e -d && tmux send-keys -t chipclaude-e2e 'node dist/cli.js' C-m && tmux attach -t chipclaude-e2e"
-    set bounds of front window to {{{CAPTURE_X}, {CAPTURE_Y}, {CAPTURE_X + CAPTURE_W}, {CAPTURE_Y + CAPTURE_H}}}
+    set bounds of front window to {{{TERM_X}, {TERM_Y}, {TERM_X + TERM_W}, {TERM_Y + TERM_H}}}
     set custom title of front window to "ChipClaude-1080p"
 end tell
 '''
