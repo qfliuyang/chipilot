@@ -1,13 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import { Box, Text, useApp, useInput, useStdout, render } from "ink";
-import TextInput from "ink-text-input";
 import { TerminalPane } from "../terminal/index.js";
 import { TerminalSession } from "../terminal/TerminalSession.js";
-
-export interface Message {
-  role: "user" | "assistant";
-  content: string;
-}
 
 export const App: React.FC = () => {
   const { exit } = useApp();
@@ -19,20 +13,28 @@ export const App: React.FC = () => {
   const half = Math.floor(width / 2);
 
   // State
-  const [pane, setPane] = useState<"chat" | "term">("chat");
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<Message[]>([
-    { role: "assistant", content: "Welcome to ChipClaude - Claude Code with embedded terminal! Type your message or Tab to switch to terminal." },
-  ]);
+  const [pane, setPane] = useState<"claude" | "term">("claude");
 
-  // Initialize session once
-  const sessionRef = useRef<TerminalSession | null>(null);
-  if (!sessionRef.current) {
-    sessionRef.current = new TerminalSession({
+  // Initialize Claude session (left pane) - runs real claude CLI
+  const claudeSessionRef = useRef<TerminalSession | null>(null);
+  if (!claudeSessionRef.current) {
+    claudeSessionRef.current = new TerminalSession({
+      cols: Math.max(20, half - 4),
+      rows: Math.max(10, height - 8),
+      shell: "claude", // Run real Claude Code CLI
+      args: [],
+    });
+    claudeSessionRef.current.start();
+  }
+
+  // Initialize Terminal session (right pane) - runs user's shell
+  const termSessionRef = useRef<TerminalSession | null>(null);
+  if (!termSessionRef.current) {
+    termSessionRef.current = new TerminalSession({
       cols: Math.max(20, half - 4),
       rows: Math.max(10, height - 8),
     });
-    sessionRef.current.start();
+    termSessionRef.current.start();
   }
 
   // Global input handler
@@ -43,27 +45,20 @@ export const App: React.FC = () => {
         return;
       }
       if (key.tab) {
-        setPane((p) => (p === "chat" ? "term" : "chat"));
+        setPane((p) => (p === "claude" ? "term" : "claude"));
         return;
       }
     }, [exit])
   );
 
-  // Submit chat message
-  const submit = useCallback(async (msg: string) => {
-    if (!msg.trim()) return;
-    setInput("");
-    setMessages((m) => [...m, { role: "user", content: msg }]);
-
-    // Echo back for now
-    setMessages((m) => [...m, { role: "assistant", content: `You said: ${msg}` }]);
-  }, []);
-
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (sessionRef.current) {
-        sessionRef.current.destroy();
+      if (claudeSessionRef.current) {
+        claudeSessionRef.current.destroy();
+      }
+      if (termSessionRef.current) {
+        termSessionRef.current.destroy();
       }
     };
   }, []);
@@ -79,27 +74,23 @@ export const App: React.FC = () => {
 
       {/* Main content - two pane layout */}
       <Box flexDirection="row" width={width} height={height - 3} flexShrink={0}>
-        {/* Chat pane */}
+        {/* Claude pane - runs real claude CLI */}
         <Box
           width={half}
           height={height - 3}
           borderStyle="single"
-          borderColor={pane === "chat" ? "cyan" : "gray"}
+          borderColor={pane === "claude" ? "cyan" : "gray"}
           flexDirection="column"
         >
-          <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
-            {messages.map((m, i) => (
-              <Box key={i} flexDirection="column" marginBottom={1}>
-                <Text bold color={m.role === "user" ? "green" : "cyan"}>
-                  {m.role === "user" ? "You:" : "Claude:"}
-                </Text>
-                <Text wrap="wrap">{m.content}</Text>
-              </Box>
-            ))}
-          </Box>
+          <TerminalPane
+            focused={pane === "claude"}
+            session={claudeSessionRef.current!}
+            width={Math.max(20, half - 4)}
+            height={Math.max(10, height - 8)}
+          />
         </Box>
 
-        {/* Terminal pane */}
+        {/* Terminal pane - runs user's shell */}
         <Box
           width={width - half}
           height={height - 3}
@@ -109,38 +100,26 @@ export const App: React.FC = () => {
         >
           <TerminalPane
             focused={pane === "term"}
-            session={sessionRef.current!}
+            session={termSessionRef.current!}
             width={Math.max(20, half - 4)}
             height={Math.max(10, height - 8)}
           />
         </Box>
       </Box>
 
-      {/* Input area */}
+      {/* Status bar */}
       <Box
         width={width}
         height={3}
         borderStyle="single"
-        borderColor={pane === "chat" ? "cyan" : "gray"}
+        borderColor={pane === "claude" ? "cyan" : "gray"}
         flexShrink={0}
+        paddingX={1}
       >
-        {pane === "chat" ? (
-          <>
-            <Text color="cyan" bold>{'> '}</Text>
-            <TextInput
-              value={input}
-              onChange={setInput}
-              onSubmit={submit}
-              placeholder="Type a message..."
-            />
-          </>
+        {pane === "claude" ? (
+          <Text color="cyan">Claude Code CLI (left) | Tab to switch to terminal</Text>
         ) : (
-          <Box flexDirection="row">
-            <Text color="gray" bold>{'> '}</Text>
-            <Text color="gray" dimColor>
-              [Tab to return to chat, type in terminal above]
-            </Text>
-          </Box>
+          <Text color="gray">Terminal (right) | Tab to switch to Claude</Text>
         )}
       </Box>
     </Box>

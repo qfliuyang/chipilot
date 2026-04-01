@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 
 export interface TerminalSessionOptions {
   shell?: string;
+  args?: string[];
   cwd?: string;
   env?: Record<string, string>;
   cols?: number;
@@ -12,6 +13,7 @@ export interface TerminalSessionOptions {
 export class TerminalSession extends EventEmitter {
   private ptyProcess: pty.IPty | null = null;
   private shell: string;
+  private args: string[];
   private cwd: string;
   private env: Record<string, string>;
   private cols: number;
@@ -22,6 +24,7 @@ export class TerminalSession extends EventEmitter {
   constructor(options: TerminalSessionOptions = {}, restartOnExit = true) {
     super();
     this.shell = options.shell || process.env.SHELL || "/bin/bash";
+    this.args = options.args || [];
     this.cwd = options.cwd || process.cwd();
     this.cols = options.cols || 80;
     this.rows = options.rows || 24;
@@ -38,8 +41,17 @@ export class TerminalSession extends EventEmitter {
       return;
     }
 
-    // Determine shell args - use -i for interactive mode to prevent SIGHUP issues
-    const shellArgs = this.shell.includes("zsh") || this.shell.includes("bash") ? ["-i"] : [];
+    // Determine shell args
+    let shellArgs: string[];
+    if (this.args) {
+      // Use provided args
+      shellArgs = this.args;
+    } else if (this.shell.includes("zsh") || this.shell.includes("bash")) {
+      // Interactive mode for shells to prevent SIGHUP issues
+      shellArgs = ["-i"];
+    } else {
+      shellArgs = [];
+    }
 
     this.ptyProcess = pty.spawn(this.shell, shellArgs, {
       name: "xterm-256color",
