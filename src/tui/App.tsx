@@ -15,12 +15,18 @@ export const App: React.FC = () => {
   // State
   const [pane, setPane] = useState<"claude" | "term">("claude");
 
+  // Calculate terminal dimensions (full pane size, no borders)
+  const claudeWidth = half;
+  const claudeHeight = height - 3;
+  const termWidth = width - half;
+  const termHeight = height - 3;
+
   // Initialize Claude session (left pane) - runs real claude CLI
   const claudeSessionRef = useRef<TerminalSession | null>(null);
   if (!claudeSessionRef.current) {
     claudeSessionRef.current = new TerminalSession({
-      cols: Math.max(20, half - 4),
-      rows: Math.max(10, height - 8),
+      cols: claudeWidth,
+      rows: claudeHeight,
       shell: "claude", // Run real Claude Code CLI
       args: [],
     });
@@ -31,8 +37,8 @@ export const App: React.FC = () => {
   const termSessionRef = useRef<TerminalSession | null>(null);
   if (!termSessionRef.current) {
     termSessionRef.current = new TerminalSession({
-      cols: Math.max(20, half - 4),
-      rows: Math.max(10, height - 8),
+      cols: termWidth,
+      rows: termHeight,
     });
     termSessionRef.current.start();
   }
@@ -72,39 +78,23 @@ export const App: React.FC = () => {
         <Text dimColor>Tab: switch | Ctrl+C: exit</Text>
       </Box>
 
-      {/* Main content - two pane layout */}
+      {/* Main content - two pane layout, no borders (terminal handles its own) */}
       <Box flexDirection="row" width={width} height={height - 3} flexShrink={0}>
         {/* Claude pane - runs real claude CLI */}
-        <Box
+        <TerminalPane
+          focused={pane === "claude"}
+          session={claudeSessionRef.current!}
           width={half}
           height={height - 3}
-          borderStyle="single"
-          borderColor={pane === "claude" ? "cyan" : "gray"}
-          flexDirection="column"
-        >
-          <TerminalPane
-            focused={pane === "claude"}
-            session={claudeSessionRef.current!}
-            width={Math.max(20, half - 4)}
-            height={Math.max(10, height - 8)}
-          />
-        </Box>
+        />
 
         {/* Terminal pane - runs user's shell */}
-        <Box
+        <TerminalPane
+          focused={pane === "term"}
+          session={termSessionRef.current!}
           width={width - half}
           height={height - 3}
-          borderStyle="single"
-          borderColor={pane === "term" ? "cyan" : "gray"}
-          flexDirection="column"
-        >
-          <TerminalPane
-            focused={pane === "term"}
-            session={termSessionRef.current!}
-            width={Math.max(20, half - 4)}
-            height={Math.max(10, height - 8)}
-          />
-        </Box>
+        />
       </Box>
 
       {/* Status bar */}

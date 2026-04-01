@@ -98,42 +98,30 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, width = 8
   // Get rendered screen from VirtualTerminal
   const vt = getVirtualTerminal();
   const screen = vt.getScreen();
-  const lines = screen.split("\n").slice(0, height);
 
-  // Pad with empty lines if needed
+  // Strip ANSI codes for clean rendering
+  const stripAnsi = (str: string): string => {
+    // eslint-disable-next-line no-control-regex
+    return str.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
+  };
+
+  // Process lines: strip ANSI, ensure exact width
+  const lines = screen.split("\n").slice(0, height).map(line => {
+    const stripped = stripAnsi(line);
+    return stripped.length > width ? stripped.slice(0, width) : stripped.padEnd(width, " ");
+  });
+
+  // Pad to exact height
   const paddedLines = [
-    ...Array(Math.max(0, height - lines.length)).fill(""),
-    ...lines
+    ...lines,
+    ...Array(Math.max(0, height - lines.length)).fill("".padEnd(width, " "))
   ];
 
   return (
     <Box flexDirection="column" width={width} height={height}>
-      {/* Header with focus indicator */}
-      <Box paddingX={1} flexShrink={0}>
-        <Text bold color="yellow">
-          {focused ? "●" : "○"} Terminal
-        </Text>
-        <Text dimColor> [{session.getShell().split("/").pop()}]</Text>
-        {session.isRunning() ? (
-          <Text dimColor> - running</Text>
-        ) : (
-          <Text color="red"> - stopped</Text>
-        )}
-      </Box>
-
-      {/* Terminal content */}
-      <Box flexDirection="column" flexGrow={1} paddingX={1} overflow="hidden">
-        {paddedLines.map((line, i) => (
-          <Text key={i}>{line || " "}</Text>
-        ))}
-      </Box>
-
-      {/* Focus hint */}
-      {!focused && (
-        <Box justifyContent="center" flexShrink={0} paddingBottom={1}>
-          <Text dimColor>[Tab to focus]</Text>
-        </Box>
-      )}
+      {paddedLines.map((line, i) => (
+        <Text key={i}>{line}</Text>
+      ))}
     </Box>
   );
 });
