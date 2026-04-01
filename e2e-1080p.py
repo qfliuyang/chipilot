@@ -108,9 +108,11 @@ class E2ETest:
     def take_screenshot(self, name):
         output = self.output_dir / f"{name}.png"
         # Capture specific region using screencapture -R x,y,w,h
+        # Note: On Retina displays, screencapture uses POINTS not pixels
+        # So 960x540 points = 1920x1080 pixels on 2x Retina
         result = subprocess.run([
             'screencapture', '-x',
-            '-R', f'{CAPTURE_X},{CAPTURE_Y},{CAPTURE_W},{CAPTURE_H}',
+            '-R', f'{TERM_X},{TERM_Y},{TERM_W},{TERM_H}',
             str(output)
         ], capture_output=True)
 
