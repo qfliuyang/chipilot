@@ -4,8 +4,6 @@ export default defineConfig({
   entry: [
     "src/index.ts",
     "src/cli.ts",
-    "src/testing/MockDetectionEngine.ts",
-    "src/terminal/xterm-polyfill.ts",
   ],
   format: ["esm"],
   platform: "node",
@@ -16,26 +14,38 @@ export default defineConfig({
   minify: false,
   external: [
     "node-pty",
-    "@anthropic-ai/sdk",
-    "openai",
-    "@pinecone-database/pinecone",
-    "@modelcontextprotocol/sdk",
     "ink",
     "ink-text-input",
-    "ink-spinner",
-    "chalk",
-    "commander",
-    "conf",
-    "xterm-headless",
-    "neo-blessed",
-    "term.js",
-    "pty.js",
-    "blessed",
+    "react",
   ],
-  noExternal: ["xterm-addon-serialize"],
+  noExternal: ["xterm-headless", "xterm-addon-serialize"],
   esbuildOptions(options) {
     options.banner = {
-      js: "// @ts-check",
+      js: `
+// Polyfill for xterm-headless browser globals
+if (typeof globalThis.window === "undefined") {
+  globalThis.window = {};
+}
+if (typeof globalThis.document === "undefined") {
+  globalThis.document = {
+    createElement: () => ({
+      getContext: () => ({
+        fillRect: () => {}, clearRect: () => {}, getImageData: () => ({ data: [] }),
+        putImageData: () => {}, createImageData: () => ({ data: [] }), setTransform: () => {},
+        drawImage: () => {}, save: () => {}, fillText: () => {}, restore: () => {},
+        beginPath: () => {}, moveTo: () => {}, lineTo: () => {}, closePath: () => {},
+        stroke: () => {}, translate: () => {}, scale: () => {}, rotate: () => {},
+        arc: () => {}, fill: () => {}, measureText: () => ({ width: 0 }), transform: () => {},
+        rect: () => {}, clip: () => {}, createLinearGradient: () => ({ addColorStop: () => {} }),
+        createRadialGradient: () => ({ addColorStop: () => {} }), createPattern: () => ({}),
+        globalCompositeOperation: "source-over",
+      }),
+      width: 0, height: 0, style: {},
+    }),
+    getElementById: () => null, querySelector: () => null, querySelectorAll: () => [],
+  };
+}
+`,
     };
   },
 });
