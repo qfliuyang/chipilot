@@ -146,12 +146,22 @@ class E2ETest:
         return output.decode('utf-8', errors='replace')
 
     def send_keys(self, keys, delay=0.5):
-        """Send keystrokes to PTY"""
-        os.write(self.fd, keys.encode())
+        """Send keystrokes to Terminal.app via AppleScript"""
+        # Escape special characters for AppleScript
+        escaped = keys.replace('\\', '\\\\').replace('"', '\\"').replace('\r', '').replace('\n', '')
+        script = f'''
+tell application "Terminal"
+    activate
+    tell application "System Events"
+        keystroke "{escaped}"
+    end tell
+end tell
+'''
+        subprocess.run(['osascript', '-e', script], capture_output=True)
         time.sleep(delay)
 
     def launch_chipilot(self):
-        log_section("LAUNCH", "Starting chipilot with PTY")
+        log_section("LAUNCH", "Starting chipilot in visible Terminal")
 
         # Check if built
         cli_js = SCRIPT_DIR / "dist" / "cli.js"
@@ -162,26 +172,23 @@ class E2ETest:
                 log_error("Build failed")
                 return False
 
-        # Create PTY and fork
-        pid, fd = pty.fork()
+        # Launch in Terminal.app using AppleScript so it appears on screen
+        script = f'''
+tell application "Terminal"
+    activate
+    do script "cd '{SCRIPT_DIR}' && node dist/cli.js"
+    set custom title of front window to "ChipClaude-E2E"
+end tell
+'''
+        result = subprocess.run(['osascript', '-e', script], capture_output=True)
+        if result.returncode != 0:
+            log_error(f"Failed to launch Terminal: {result.stderr.decode()}")
+            return False
 
-        if pid == 0:
-            # Child process - run chipilot
-            os.chdir(SCRIPT_DIR)
-            os.execlp('node', 'node', 'dist/cli.js')
-        else:
-            # Parent process
-            self.pid = pid
-            self.fd = fd
-            log_success(f"Chipilot launched (PID: {pid})")
-            log_info("Waiting for startup...")
-            time.sleep(3)
-
-            # Read initial output
-            output = self.read_output(2)
-            if output:
-                (self.output_dir / "00-startup.txt").write_text(output)
-            return True
+        log_success("Chipilot launched in Terminal.app")
+        log_info("Waiting 5 seconds for startup...")
+        time.sleep(5)
+        return True
 
     def run_test_sequence(self):
         log_section("TEST", "Running E2E sequence")
@@ -205,14 +212,8 @@ class E2ETest:
             else:
                 time.sleep(delay)
 
-            # Take PNG screenshot
+            # Take PNG screenshot (visual evidence from Terminal.app)
             self.take_screenshot(name)
-
-            # Capture text output
-            output = self.read_output(0.5)
-            if output:
-                (self.output_dir / f"{name}.txt").write_text(output)
-                log_info(f"  Captured: {name}.txt")
 
         log_success("Test sequence complete")
 
@@ -316,13 +317,14 @@ To enable visual evidence:
         log_success(f"Report: {report_path}")
 
     def cleanup(self):
-        if self.pid:
-            try:
-                os.kill(self.pid, signal.SIGTERM)
-                time.sleep(1)
-                os.kill(self.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+        log_info("Cleaning up...")
+        # Close Terminal window
+        script = '''
+tell application "Terminal"
+    close (every window whose name contains "ChipClaude-E2E")
+end tell
+'''
+        subprocess.run(['osascript', '-e', script], capture_output=True)
         self.stop_recording()
 
     def run(self):
