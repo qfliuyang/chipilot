@@ -66,3 +66,51 @@ The engine validates:
 - `src/testing/` - Test framework and MockDetectionEngine
 - `tests/` - Unified test framework (all tests belong here)
 - `docs/` - Architecture and design documentation
+
+## gstack
+
+For all web browsing, use the `/browse` skill from gstack. **Never use `mcp__claude-in-chrome__*` tools.**
+
+### Available gstack Skills
+
+- `/office-hours` - Team communication and standups
+- `/plan-ceo-review` - CEO-level strategic review planning
+- `/plan-eng-review` - Engineering review planning
+- `/plan-design-review` - Design review planning
+- `/design-consultation` - Design consultation workflow
+- `/design-shotgun` - Rapid design exploration
+- `/design-html` - HTML design implementation
+- `/review` - Comprehensive code review
+- `/ship` - Ship/launch workflow
+- `/land-and-deploy` - Deploy and land changes
+- `/canary` - Canary deployment
+- `/benchmark` - Performance benchmarking
+- `/browse` - Web browsing (use this instead of Chrome MCP)
+- `/connect-chrome` - Connect to Chrome browser
+- `/qa` - Quality assurance workflow
+- `/qa-only` - QA without additional context
+- `/design-review` - Design review workflow
+- `/setup-browser-cookies` - Browser cookie setup
+- `/setup-deploy` - Deployment setup
+- `/retro` - Retrospective facilitation
+- `/investigate` - Deep investigation
+- `/document-release` - Release documentation
+- `/codex` - Codex integration
+- `/cso` - Chief of Staff workflow
+- `/autoplan` - Automated planning
+- `/careful` - Careful/safe execution mode
+- `/freeze` - Freeze/pause operations
+- `/guard` - Guard/protect operations
+- `/unfreeze` - Unfreeze/resume operations
+- `/gstack-upgrade` - Upgrade gstack
+- `/learn` - Manage project learnings
+
+### Troubleshooting
+
+If gstack skills aren't working (e.g., `/browse` command not found), run:
+
+```bash
+cd .claude/skills/gstack && ./setup
+```
+
+This will build the binaries and register all skills.

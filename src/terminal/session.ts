@@ -61,8 +61,10 @@ export class TerminalSession extends EventEmitter {
       this.started = false;
 
       // Auto-restart unless explicitly killed
-      if (signal !== "SIGKILL" && signal !== "SIGTERM") {
-        console.log(`[TerminalSession] Shell exited (code: ${exitCode}, signal: ${signal}), restarting...`);
+      // Signal numbers: SIGTERM=15, SIGKILL=9
+      const signalNum = typeof signal === "string" ? parseInt(signal, 10) : signal;
+      if (signalNum !== 9 && signalNum !== 15) {
+        this.emit("restart", { exitCode, signal: signalNum });
         setTimeout(() => this.start(), 100);
       }
     });

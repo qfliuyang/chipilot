@@ -10,6 +10,11 @@ interface Props {
   rows?: number;
 }
 
+interface ClipboardError {
+  operation: "copy" | "paste";
+  error: unknown;
+}
+
 /**
  * TerminalPane - Real terminal emulation using xterm.js
  *
@@ -18,6 +23,7 @@ interface Props {
  */
 export const TerminalPane: React.FC<Props> = memo(({ focused, session, cols = 80, rows = 24 }) => {
   const virtualTermRef = useRef<VirtualTerminal | null>(null);
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [, forceRender] = React.useReducer((n: number) => n + 1, 0);
 
   // Initialize or get VirtualTerminal instance
@@ -30,13 +36,27 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, cols = 80
 
   // Handle resize (debounced 100ms)
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      const vt = getVirtualTerminal();
-      vt.resize(cols, rows);
-      session.resize(cols, rows);
-      forceRender();
+    // Clear any pending resize
+    if (resizeTimeoutRef.current) {
+      clearTimeout(resizeTimeoutRef.current);
+    }
+
+    resizeTimeoutRef.current = setTimeout(() => {
+      // Only resize if component is still mounted (session still valid)
+      if (session.isRunning() || virtualTermRef.current) {
+        const vt = getVirtualTerminal();
+        vt.resize(cols, rows);
+        session.resize(cols, rows);
+        forceRender();
+      }
     }, 100);
-    return () => clearTimeout(timeout);
+
+    return () => {
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+        resizeTimeoutRef.current = null;
+      }
+    };
   }, [cols, rows, session, getVirtualTerminal]);
 
   // Handle terminal output
@@ -82,10 +102,14 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, cols = 80
         if (selection) {
           try {
             if (typeof navigator !== "undefined" && navigator.clipboard) {
-              navigator.clipboard.writeText(selection);
+              navigator.clipboard.writeText(selection).catch((err: unknown) => {
+                session.emit("clipboardError", { operation: "copy", error: err } as ClipboardError);
+              });
+            } else {
+              session.emit("clipboardError", { operation: "copy", error: new Error("Clipboard API not available") } as ClipboardError);
             }
-          } catch {
-            // Clipboard API not available, ignore
+          } catch (err: unknown) {
+            session.emit("clipboardError", { operation: "copy", error: err } as ClipboardError);
           }
         }
         return;
@@ -97,10 +121,14 @@ export const TerminalPane: React.FC<Props> = memo(({ focused, session, cols = 80
           if (typeof navigator !== "undefined" && navigator.clipboard) {
             navigator.clipboard.readText().then((text) => {
               if (text) session.write(text);
+            }).catch((err: unknown) => {
+              session.emit("clipboardError", { operation: "paste", error: err } as ClipboardError);
             });
+          } else {
+            session.emit("clipboardError", { operation: "paste", error: new Error("Clipboard API not available") } as ClipboardError);
           }
-        } catch {
-          // Clipboard API not available, ignore
+        } catch (err: unknown) {
+          session.emit("clipboardError", { operation: "paste", error: err } as ClipboardError);
         }
         return;
       }
